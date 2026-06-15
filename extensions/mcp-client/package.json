@@ -1,0 +1,28 @@
+{
+  "name": "pi-mcp-client",
+  "version": "1.0.0",
+  "description": "MCP (Model Context Protocol) client extension for Pi coding agent",
+  "main": "index.ts",
+  "scripts": {
+    "install": "npm install",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "typebox": "^1.0.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.79.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "license": "MIT"
+}
