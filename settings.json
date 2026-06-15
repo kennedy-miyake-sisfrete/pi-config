@@ -1,0 +1,11 @@
+{
+  "lastChangelogVersion": "0.79.3",
+  "defaultProvider": "openrouter",
+  "defaultModel": "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "openrouter/openrouter/owl-alpha",
+    "openrouter/deepseek/deepseek-v4-flash",
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+  ]
+}

@@ -1,0 +1,15 @@
+# Sensitive/authentication files
+auth.json
+
+# Sessions (contain conversation history)
+sessions/
+
+# Extension/node_modules (if any local extensions with deps)
+extensions/**/node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
