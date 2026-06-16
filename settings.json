@@ -1,13 +1,17 @@
 {
   "lastChangelogVersion": "0.79.3",
   "defaultProvider": "openrouter",
-  "defaultModel": "nvidia/nemotron-3-ultra-550b-a55b:free",
-  "defaultThinkingLevel": "low",
+  "defaultModel": "openrouter/owl-alpha",
+  "defaultThinkingLevel": "high",
   "enabledModels": [
     "openrouter/openrouter/owl-alpha",
     "openrouter/deepseek/deepseek-v4-flash",
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
   ],
-  "hideThinkingBlock": false,
-  "theme": "dark"
+  "hideThinkingBlock": true,
+  "theme": "miyake-catppuccin",
+  "packages": [
+    "git:github.com/nicobailon/pi-mcp-adapter",
+    "git:github.com/jonjonrankin/pi-caveman"
+  ]
 }
