@@ -9,18 +9,5 @@
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
   ],
   "hideThinkingBlock": false,
-  "theme": "dark",
-  "mcp": {
-    "autoConnect": true,
-    "toolPrefix": "mcp",
-    "servers": [
-      {
-        "name": "codegraph",
-        "transport": "stdio",
-        "command": "codegraph",
-        "args": ["serve", "--mcp"],
-        "enabled": true
-      }
-    ]
-  }
+  "theme": "dark"
 }
