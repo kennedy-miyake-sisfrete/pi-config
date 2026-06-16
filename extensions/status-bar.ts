@@ -43,8 +43,6 @@ class ModelInfoEditor extends CustomEditor {
     const lines = super.render(width);
     if (width <= 4) return lines;
 
-    const content = lines.length >= 3 ? lines.slice(1, -1) : lines;
-
     const borderFg = this.uiTheme.fg.bind(this.uiTheme, "border");
     const mutedFg = this.uiTheme.fg.bind(this.uiTheme, "borderMuted");
     const dimFg = this.uiTheme.fg.bind(this.uiTheme, "dim");
@@ -64,11 +62,25 @@ class ModelInfoEditor extends CustomEditor {
       " " + this.uiTheme.fg("dim", this.thinking),
     ].join("");
 
-    const tokenInfo = dimFg(`↑ ${this.lastInput}/${this.lastOutput} ↓ ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
+    const tokenInfo = dimFg(`\u2191 ${this.lastInput}/${this.lastOutput} \u2193 ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
 
-    const topBorder = mutedFg("─".repeat(width));
-    const bottomBorder = mutedFg("─".repeat(width));
-    const paddedContent = content.map((line) => rail + fill(line));
+    const topBorder = mutedFg("\u2500".repeat(width));
+    const bottomBorder = mutedFg("\u2500".repeat(width));
+
+    const stripped = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '');
+
+    let borderIdx = lines.length - 1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (stripped(lines[i]).trim().match(/^\u2500+$/)) {
+        borderIdx = i;
+        break;
+      }
+    }
+
+    const editorLines = lines.slice(1, borderIdx);
+    const autoComplete = lines.slice(borderIdx + 1);
+
+    const paddedContent = editorLines.map((line) => rail + fill(line));
     const spacer = rail + fill("");
 
     const leftPart = modelInfo;
@@ -78,7 +90,7 @@ class ModelInfoEditor extends CustomEditor {
     const gap = Math.max(1, innerW - leftW - rightW);
     const metaLine = rail + leftPart + " ".repeat(gap) + rightPart;
 
-    return [topBorder, ...paddedContent, spacer, metaLine, bottomBorder];
+    return [topBorder, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
   }
 }
 
@@ -92,7 +104,6 @@ export default function (pi: ExtensionAPI) {
     const folderName = path.basename(ctx.cwd);
     currentThinking = pi.getThinkingLevel() || "off";
 
-    // Calculate existing session totals from entries
     const entries = ctx.sessionManager.getEntries();
     sessionTokens = 0;
     sessionCost = 0;
