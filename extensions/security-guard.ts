@@ -65,6 +65,19 @@ const SENSITIVE_PATTERNS: { pattern: RegExp; severity: string; reason: string }[
   { pattern: /\bbash\s+<(curl|wget)\b/i, severity: "critical", reason: "Bash subshell com download remoto" },
 
   { pattern: /\bpkexec\s+(rm|chmod|chown|mkfs|dd)/i, severity: "critical", reason: "Execução privilegiada de comando perigoso" },
+
+  // =================== CONTAINER / ORCHESTRATION ===================
+  { pattern: /\bdocker\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|diff|export|import|load|save|tag|inspect|logs|port|stats|top|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|plugin|node|service|stack|swarm|config|secret|trust|search|buildx|compose|scan|context|manifest|app|sbom|deploy|init|extension)\b/i, severity: "critical", reason: "Execução dentro de container Docker bloqueada" },
+  { pattern: /\bpodman\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|diff|export|import|load|save|tag|inspect|logs|port|stats|top|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|pod|kube|play|generate|machine|farm|secret|manifest)\b/i, severity: "critical", reason: "Execução dentro de container Podman bloqueada" },
+  { pattern: /\b(nerdctl|ctr)\s+(run|exec|create|start|attach|cp|logs|kill|stop|rm|images|containers|namespaces)\b/i, severity: "critical", reason: "Execução dentro de container containerd bloqueada" },
+  { pattern: /\bkubectl\s+(exec|run|attach|cp|port-forward|proxy)\b/i, severity: "critical", reason: "Execução dentro de pod Kubernetes bloqueada" },
+  { pattern: /\bkubectl\s+(apply|create|delete|patch|replace|edit|scale|rollout|expose|debug|auth|config|get|describe|label|annotate|taint|drain|cordon|uncordon|top)\b/i, severity: "high", reason: "Gerenciamento de cluster Kubernetes" },
+  { pattern: /\bhelm\s+(install|upgrade|rollback|uninstall|template|pull|push|repo|search|list|status|history|get|test|verify|package|lint|dependency)\b/i, severity: "high", reason: "Gerenciamento de releases Helm" },
+  { pattern: /\b(docker-compose|docker compose)\s+(up|down|run|exec|build|push|pull|start|stop|restart|pause|unpause|kill|rm|ps|logs|port|top|config|create|scale)\b/i, severity: "critical", reason: "Execução via Docker Compose bloqueada" },
+  { pattern: /\b(buildah|skopeo)\b/i, severity: "medium", reason: "Build/push de imagens container" },
+  { pattern: /\blxc\s+(start|stop|restart|exec|attach|create|destroy|launch|copy|move|publish|snapshot|console|shell)\b/i, severity: "high", reason: "Execução dentro de container LXC bloqueada" },
+  { pattern: /\bsystemd-nspawn\b|\bmachinectl\b/i, severity: "high", reason: "Execução via systemd-nspawn bloqueada" },
+  { pattern: /\b(runc|crun|kata-runtime|gvisor)\b/i, severity: "medium", reason: "Container runtime bloqueado" },
 ];
 
 const SENSITIVE_PATH_PATTERNS: { pattern: RegExp; severity: string; reason: string }[] = [

@@ -133,10 +133,11 @@ Mantenha um arquivo de aprendizado consolidando conceitos praticados, decisões 
 10. Sempre atualize o documento de aprendizado ao final da sessão.
 11. **Goal-Driven:** para cada tarefa, defina o critério de verificação *antes* de implementar. O critério deve ser objetivo e testável.
 12. **Simplicity Check:** antes de concluir, pergunte-se *"Um engenheiro sênior acharia isso complicado demais?"* e *"Dá para fazer com metade do código?"*
+13. **Proibido executar comandos dentro de containers** (docker, podman, containerd, kubernetes, etc.). Use apenas o ambiente do host.
 
 ---
 
-## 8. NOTAS FINAIS
+## 8. NOTIS
 
 Documento vivo. Atualize conforme o projeto e o aprendizado do usuário evoluem. A filosofia central — ensinar enquanto constrói — jamais deve ser comprometida. O objetivo final não é só entregar software funcional, mas formar um profissional capaz de decisões autônomas com fundamentação sólida.
 
