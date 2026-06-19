@@ -374,6 +374,9 @@ const SENSITIVE_PATH_PATTERNS: { pattern: RegExp; severity: string; reason: stri
   { pattern: /\/keystore\.(jks|p12|pfx|bks)$/i, severity: "critical", reason: "Keystore" },
   { pattern: /\/truststore\.(jks|p12|pfx|bks)$/i, severity: "high", reason: "Truststore" },
 
+  // =================== DIRETÓRIOS DEPRECADOS ===================
+  { pattern: /\/deprecated(\/|$)/, severity: "high", reason: "Diretório deprecated — código legado, não ler" },
+
   // =================== GPG / CRIPTOGRAFIA ===================
   { pattern: /\/\.gnupg\/private-keys/, severity: "critical", reason: "Chave privada GPG" },
   { pattern: /\/\.gnupg\/secring\.gpg$/, severity: "critical", reason: "Chave secreta GPG" },
