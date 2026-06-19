@@ -128,14 +128,26 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setFooter((tui, theme, footerData) => {
       const renderLine = (width: number): string[] => {
         const branch = footerData.getGitBranch() || "no-branch";
-        const line = [
+
+        // Left side: project context
+        const leftPart = [
           theme.fg("accent", "\u{f07c}"),
           theme.fg("accent", " " + folderName),
           theme.fg("muted", " on "),
           theme.fg("borderAccent", branch),
           theme.fg("warning", " \u{3bb}"),
         ].join("");
-        return [line];
+
+        // Right side: extension statuses (caveman, etc.)
+        const statuses = footerData.getExtensionStatuses();
+        const cavemanText = statuses?.get("caveman") || "";
+
+        const leftW = visibleWidth(leftPart);
+        const cavemanW = visibleWidth(cavemanText);
+        const gap = Math.max(1, width - leftW - cavemanW);
+
+        const fullLine = leftPart + " ".repeat(gap) + cavemanText;
+        return [truncateToWidth(fullLine, width)];
       };
 
       return {
