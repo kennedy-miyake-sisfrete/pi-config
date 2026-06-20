@@ -1,14 +1,17 @@
 {
   "lastChangelogVersion": "0.79.3",
-  "defaultProvider": "openrouter",
-  "defaultModel": "openrouter/owl-alpha",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4-flash",
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "openrouter/openrouter/owl-alpha",
     "openrouter/deepseek/deepseek-v4-flash",
-    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "opencode-go/kimi-k2.6",
+    "opencode-go/deepseek-v4-flash",
+    "opencode-go/deepseek-v4-pro"
   ],
-  "hideThinkingBlock": true,
+  "hideThinkingBlock": false,
   "theme": "miyake-catppuccin",
   "packages": [
     "git:github.com/nicobailon/pi-mcp-adapter",
