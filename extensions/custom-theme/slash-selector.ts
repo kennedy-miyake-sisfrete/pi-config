@@ -282,9 +282,13 @@ export function registerSlashSelector(pi: ExtensionAPI): void {
 			);
 
 			if (result) {
-				// Paste to editor — sendUserMessage bypasses built-in command
-				// processing (TUI layer), sending raw text to the LLM instead.
-				ctx.ui.pasteToEditor(result);
+				// Built-in commands must go through TUI layer — paste + manual Enter
+				if (BUILTIN.some((b) => b.value === result)) {
+					ctx.ui.pasteToEditor(result);
+				} else {
+					// Extension/prompt/skill commands go through extension pipeline
+					pi.sendUserMessage(result);
+				}
 			}
 		},
 	});
