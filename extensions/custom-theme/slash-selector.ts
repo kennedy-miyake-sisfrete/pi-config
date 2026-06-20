@@ -78,6 +78,7 @@ const BUILTIN: { value: string; description: string }[] = [
 
 interface SlashItem {
 	value: string; // "/model"
+	description?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,13 +173,17 @@ export class SlashSelector implements Component {
 		const innerW = Math.max(1, width - 2);
 		const lines: string[] = [];
 
-		// Color helpers — tudo em mauve (accent FG), sem fundo extra
+		// Color helpers
 		const A = (text: string) => t.fg("accent", text);
-		const pad = (text: string) => {
+		const M = (text: string) => t.fg("muted", text);
+		// Preenche com espacos ate innerW para que o fundo cubra a linha toda
+		const fill = (text: string) => {
 			const w = visibleWidth(text);
 			return w < innerW ? text + " ".repeat(innerW - w) : text;
 		};
-		const bar = (text: string) => A("\u2502") + pad(text) + A("\u2502");
+		const bar = (text: string) => A("\u2502") + text + A("\u2502");
+		// Linha com fundo de selecao (fill + bg dentro do bar)
+		const selBar = (text: string) => bar(A(t.bg("selectedBg", fill(text))));
 
 		// Box top
 		lines.push(A(`\u250c${"\u2500".repeat(innerW)}\u2510`));
@@ -188,15 +193,14 @@ export class SlashSelector implements Component {
 		const headerLeft = ` ${A("/")}${filterStyled}`;
 		const headerRight = A(`${this.filtered.length}`);
 		const headerPad = " ".repeat(Math.max(0, innerW - visibleWidth(headerLeft) - visibleWidth(headerRight)));
-		lines.push(bar(`${headerLeft}${headerPad}${headerRight}`));
+		lines.push(bar(fill(`${headerLeft}${headerPad}${headerRight}`)));
 
 		// Divider
 		lines.push(A(`\u251c${"\u2500".repeat(innerW)}\u2524`));
 
 		// Items
 		if (this.filtered.length === 0) {
-			const msg = A("  No matching commands");
-			lines.push(bar(msg));
+			lines.push(bar(fill(A("  No matching commands"))));
 		} else {
 			// Scrolling window centered on selected index
 			let start = this.idx - Math.floor(MAX_VISIBLE / 2);
@@ -208,11 +212,17 @@ export class SlashSelector implements Component {
 				const icon = getIcon(item.value);
 				const nameStr = ` ${icon} ${item.value}`;
 
-				const line = isSel
-					? A(`\u25b8${nameStr}`)
-					: A(`  ${nameStr}`);
-
-				lines.push(bar(line));
+				if (isSel) {
+					// —— Linha do comando (selecionado): fundo selectedBg + ▶ ——
+					lines.push(selBar(`\u25b8${nameStr}`));
+					// —— Linha de descricao (se houver) ——
+					if (item.description) {
+						lines.push(selBar(M(`  ${item.description}`)));
+					}
+				} else {
+					// Nao selecionado: sem fundo, espaco duplo no lugar da seta
+					lines.push(bar(fill(A(`  ${nameStr}`))));
+				}
 			}
 		}
 
@@ -240,12 +250,13 @@ export function registerSlashSelector(pi: ExtensionAPI): void {
 			const commands = pi.getCommands();
 			const extItems: SlashItem[] = commands.map((cmd) => ({
 				value: cmd.name.startsWith("/") ? cmd.name : `/${cmd.name}`,
+				description: cmd.description,
 			}));
 			// Deduplica: built-in primeiro, extItems sobrescreve se mesmo nome
 			const seen = new Set<string>();
 			const items: SlashItem[] = [];
 			for (const item of [
-				...BUILTIN.map((b) => ({ value: b.value })),
+				...BUILTIN,
 				...extItems,
 			]) {
 				if (!seen.has(item.value)) {
