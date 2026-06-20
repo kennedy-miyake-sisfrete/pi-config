@@ -1,0 +1,250 @@
+/**
+ * Slash Selector — overlay customizado para navegar /comandos.
+ *
+ * Trigger: Ctrl+/
+ * Keyboard: ↑↓ Enter Esc Ctrl+C Ctrl+D Ctrl+G para sair
+ * Filtro por substring no nome do comando
+ * Janela deslizante com MAX_VISIBLE items visiveis
+ */
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Component, Theme } from "@earendil-works/pi-coding-agent";
+import type { TUI } from "@earendil-works/pi-tui";
+import { matchesKey, visibleWidth } from "@earendil-works/pi-tui";
+
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+
+const ICON_MAP: Record<string, string> = {
+	"/model":      "\uf0e7", // nf-fa-bolt
+	"/settings":   "\uf013", // nf-fa-gear
+	"/new":        "\uf055", // nf-fa-plus-circle
+	"/clear":      "\uf014", // nf-fa-trash-o
+	"/help":       "\uf059", // nf-fa-question-circle
+	"/compact":    "\uf187", // nf-fa-archive
+	"/tree":       "\uf1bb", // nf-fa-tree
+	"/fork":       "\uf126", // nf-fa-code-fork
+	"/resume":     "\uf04b", // nf-fa-play
+	"/export":     "\uf019", // nf-fa-download
+	"/sudo-clear": "\uf023", // nf-fa-lock
+};
+const DEFAULT_ICON = "\uf120"; // nf-fa-terminal
+
+function getIcon(name: string): string {
+	return ICON_MAP[name] ?? DEFAULT_ICON;
+}
+
+// ---------------------------------------------------------------------------
+// Built-in commands
+// ---------------------------------------------------------------------------
+
+const BUILTIN: { value: string; description: string }[] = [
+	{ value: "/model", description: "Change active model" },
+	{ value: "/settings", description: "Open settings" },
+	{ value: "/new", description: "New session" },
+	{ value: "/clear", description: "Clear session" },
+	{ value: "/help", description: "Help" },
+	{ value: "/compact", description: "Compact context" },
+	{ value: "/tree", description: "Session tree" },
+	{ value: "/fork", description: "Fork session" },
+	{ value: "/resume", description: "Resume session" },
+	{ value: "/export", description: "Export" },
+];
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface SlashItem {
+	value: string; // "/model"
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+const MAX_VISIBLE = 12;
+
+
+export class SlashSelector implements Component {
+	private filter = "";
+	private idx = 0;
+	private items: SlashItem[];
+	private filtered: SlashItem[];
+	private done: (value: string | null) => void;
+	private t: Theme;
+	private tui: TUI;
+
+	constructor(items: SlashItem[], t: Theme, tui: TUI, done: (value: string | null) => void) {
+		this.items = items;
+		this.t = t;
+		this.tui = tui;
+		this.done = done;
+		this.filtered = items;
+	}
+
+	handleInput(data: string): void {
+		// Arrow Up
+		if (matchesKey(data, "up")) {
+			if (this.filtered.length === 0) return;
+			this.idx = Math.max(0, this.idx - 1);
+			this.tui.requestRender();
+			return;
+		}
+		// Arrow Down
+		if (matchesKey(data, "down")) {
+			if (this.filtered.length === 0) return;
+			this.idx = Math.min(this.filtered.length - 1, this.idx + 1);
+			this.tui.requestRender();
+			return;
+		}
+		// Enter
+		if (matchesKey(data, "enter") || matchesKey(data, "return")) {
+			if (this.filtered.length > 0 && this.idx < this.filtered.length) {
+				this.done(this.filtered[this.idx].value);
+			}
+			return;
+		}
+		// Cancel (Esc, Ctrl+C, Ctrl+D, Ctrl+G)
+		if (
+			matchesKey(data, "escape") ||
+			matchesKey(data, "ctrl+c") ||
+			matchesKey(data, "ctrl+d") ||
+			matchesKey(data, "ctrl+g")
+		) {
+			this.done(null);
+			return;
+		}
+		// Backspace
+		if (matchesKey(data, "backspace")) {
+			if (this.filter.length > 0) {
+				this.filter = this.filter.slice(0, -1);
+				this.applyFilter();
+				this.tui.requestRender();
+			}
+			return;
+		}
+		// Printable ASCII
+		if (data.length === 1) {
+			const c = data.charCodeAt(0);
+			if (c >= 32 && c <= 126) {
+				this.filter += data;
+				this.applyFilter();
+				this.tui.requestRender();
+			}
+			return;
+		}
+	}
+
+	private applyFilter(): void {
+		const f = this.filter.toLowerCase();
+		this.filtered = f
+			? this.items.filter((it) => it.value.toLowerCase().includes(f))
+			: [...this.items];
+		if (this.idx >= this.filtered.length) {
+			this.idx = Math.max(0, this.filtered.length - 1);
+		}
+	}
+
+	render(width: number): string[] {
+		const t = this.t;
+		const innerW = Math.max(1, width - 2);
+		const lines: string[] = [];
+
+		// Color helpers — tudo em mauve (accent FG + selectedBg BG)
+		const A = (text: string) => t.fg("accent", text);
+		const fill = (text: string) => {
+			const w = visibleWidth(text);
+			const padded = w < innerW ? text + " ".repeat(innerW - w) : text;
+			return t.bg("selectedBg", padded);
+		};
+		const bar = (text: string) => A("\u2502") + fill(text) + A("\u2502");
+
+		// Box top
+		lines.push(A(`\u250c${"\u2500".repeat(innerW)}\u2510`));
+
+		// Header: /<filtro>  N
+		const filterStyled = A(this.filter || " ");
+		const headerLeft = ` ${A("/")}${filterStyled}`;
+		const headerRight = A(`${this.filtered.length}`);
+		const headerPad = " ".repeat(Math.max(0, innerW - visibleWidth(headerLeft) - visibleWidth(headerRight)));
+		lines.push(bar(`${headerLeft}${headerPad}${headerRight}`));
+
+		// Divider
+		lines.push(A(`\u251c${"\u2500".repeat(innerW)}\u2524`));
+
+		// Items
+		if (this.filtered.length === 0) {
+			const msg = A("  No matching commands");
+			lines.push(bar(msg));
+		} else {
+			// Scrolling window centered on selected index
+			let start = this.idx - Math.floor(MAX_VISIBLE / 2);
+			start = Math.max(0, Math.min(start, this.filtered.length - MAX_VISIBLE));
+
+			for (let i = 0; i < MAX_VISIBLE && start + i < this.filtered.length; i++) {
+				const item = this.filtered[start + i];
+				const isSel = (start + i) === this.idx;
+				const icon = getIcon(item.value);
+				const nameStr = ` ${icon} ${item.value}`;
+
+				const line = isSel
+					? A(`\u25b8${nameStr}`)
+					: A(`  ${nameStr}`);
+
+				lines.push(bar(line));
+			}
+		}
+
+		// Bottom border
+		lines.push(A(`\u2514${"\u2500".repeat(innerW)}\u2518`));
+
+		return lines;
+	}
+
+	invalidate(): void {
+		this.tui.requestRender();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+export function registerSlashSelector(pi: ExtensionAPI): void {
+	pi.registerShortcut("ctrl+/", {
+		description: "Selecionar slash command",
+		handler: async (ctx) => {
+			if (!ctx.hasUI) return;
+
+			const commands = pi.getCommands();
+			const extItems: SlashItem[] = commands.map((cmd) => ({
+				value: cmd.name.startsWith("/") ? cmd.name : `/${cmd.name}`,
+			}));
+			const items: SlashItem[] = [
+				...BUILTIN.map((b) => ({ value: b.value })),
+				...extItems,
+			];
+
+			if (items.length === 0) return;
+
+			const result = await ctx.ui.custom<string | null>(
+				(tui, theme, _kb, done) => new SlashSelector(items, theme, tui, done),
+				{
+					overlay: true,
+					overlayOptions: {
+						width: "60%",
+						minWidth: 40,
+						maxHeight: "50%",
+						anchor: "center",
+					},
+				},
+			);
+
+			if (result) {
+				ctx.ui.pasteToEditor(result);
+			}
+		},
+	});
+}
