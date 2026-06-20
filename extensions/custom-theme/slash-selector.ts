@@ -17,17 +17,27 @@ import { matchesKey, visibleWidth } from "@earendil-works/pi-tui";
 // ---------------------------------------------------------------------------
 
 const ICON_MAP: Record<string, string> = {
-	"/model":      "\uf0e7", // nf-fa-bolt
-	"/settings":   "\uf013", // nf-fa-gear
-	"/new":        "\uf055", // nf-fa-plus-circle
-	"/clear":      "\uf014", // nf-fa-trash-o
-	"/help":       "\uf059", // nf-fa-question-circle
-	"/compact":    "\uf187", // nf-fa-archive
-	"/tree":       "\uf1bb", // nf-fa-tree
-	"/fork":       "\uf126", // nf-fa-code-fork
-	"/resume":     "\uf04b", // nf-fa-play
-	"/export":     "\uf019", // nf-fa-download
-	"/sudo-clear": "\uf023", // nf-fa-lock
+	"/model":        "\uf0e7",  // nf-fa-bolt
+	"/settings":     "\uf013",  // nf-fa-gear
+	"/new":          "\uf055",  // nf-fa-plus-circle
+	"/compact":      "\uf187",  // nf-fa-archive
+	"/tree":         "\uf1bb",  // nf-fa-tree
+	"/fork":         "\uf126",  // nf-fa-code-fork
+	"/clone":        "\uf0c5",  // nf-fa-copy
+	"/resume":       "\uf04b",  // nf-fa-play
+	"/export":       "\uf019",  // nf-fa-download
+	"/reload":       "\uf021",  // nf-fa-refresh
+	"/name":         "\uf040",  // nf-fa-pencil
+	"/session":      "\uf0ca",  // nf-fa-list
+	"/copy":         "\uf0c5",  // nf-fa-copy
+	"/share":        "\uf064",  // nf-fa-share
+	"/hotkeys":      "\uf11c",  // nf-fa-keyboard-o
+	"/changelog":    "\uf0f6",  // nf-fa-file-text
+	"/login":        "\uf090",  // nf-fa-sign-in
+	"/scoped-models":"\uf0e7",  // nf-fa-bolt
+	"/trust":        "\uf023",  // nf-fa-lock
+	"/quit":         "\uf011",  // nf-fa-power-off
+	"/sudo-clear":   "\uf023",  // nf-fa-lock
 };
 const DEFAULT_ICON = "\uf120"; // nf-fa-terminal
 
@@ -40,16 +50,26 @@ function getIcon(name: string): string {
 // ---------------------------------------------------------------------------
 
 const BUILTIN: { value: string; description: string }[] = [
-	{ value: "/model", description: "Change active model" },
+	{ value: "/model", description: "Switch model" },
 	{ value: "/settings", description: "Open settings" },
 	{ value: "/new", description: "New session" },
-	{ value: "/clear", description: "Clear session" },
-	{ value: "/help", description: "Help" },
+	{ value: "/resume", description: "Resume session" },
 	{ value: "/compact", description: "Compact context" },
 	{ value: "/tree", description: "Session tree" },
 	{ value: "/fork", description: "Fork session" },
-	{ value: "/resume", description: "Resume session" },
-	{ value: "/export", description: "Export" },
+	{ value: "/clone", description: "Clone branch" },
+	{ value: "/export", description: "Export to HTML" },
+	{ value: "/reload", description: "Reload extensions, skills, prompts" },
+	{ value: "/name", description: "Set session name" },
+	{ value: "/session", description: "Show session info" },
+	{ value: "/copy", description: "Copy last assistant message" },
+	{ value: "/share", description: "Upload as private Gist" },
+	{ value: "/hotkeys", description: "Show keyboard shortcuts" },
+	{ value: "/changelog", description: "Display version history" },
+	{ value: "/login", description: "OAuth login" },
+	{ value: "/scoped-models", description: "Enable/disable models for cycling" },
+	{ value: "/trust", description: "Save project trust decision" },
+	{ value: "/quit", description: "Quit pi" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -152,14 +172,13 @@ export class SlashSelector implements Component {
 		const innerW = Math.max(1, width - 2);
 		const lines: string[] = [];
 
-		// Color helpers — tudo em mauve (accent FG + selectedBg BG)
+		// Color helpers — tudo em mauve (accent FG), sem fundo extra
 		const A = (text: string) => t.fg("accent", text);
-		const fill = (text: string) => {
+		const pad = (text: string) => {
 			const w = visibleWidth(text);
-			const padded = w < innerW ? text + " ".repeat(innerW - w) : text;
-			return t.bg("selectedBg", padded);
+			return w < innerW ? text + " ".repeat(innerW - w) : text;
 		};
-		const bar = (text: string) => A("\u2502") + fill(text) + A("\u2502");
+		const bar = (text: string) => A("\u2502") + pad(text) + A("\u2502");
 
 		// Box top
 		lines.push(A(`\u250c${"\u2500".repeat(innerW)}\u2510`));
@@ -222,10 +241,18 @@ export function registerSlashSelector(pi: ExtensionAPI): void {
 			const extItems: SlashItem[] = commands.map((cmd) => ({
 				value: cmd.name.startsWith("/") ? cmd.name : `/${cmd.name}`,
 			}));
-			const items: SlashItem[] = [
+			// Deduplica: built-in primeiro, extItems sobrescreve se mesmo nome
+			const seen = new Set<string>();
+			const items: SlashItem[] = [];
+			for (const item of [
 				...BUILTIN.map((b) => ({ value: b.value })),
 				...extItems,
-			];
+			]) {
+				if (!seen.has(item.value)) {
+					seen.add(item.value);
+					items.push(item);
+				}
+			}
 
 			if (items.length === 0) return;
 
