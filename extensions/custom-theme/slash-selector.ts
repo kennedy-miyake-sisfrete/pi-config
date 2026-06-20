@@ -275,8 +275,7 @@ export function registerSlashSelector(pi: ExtensionAPI): void {
 					overlay: true,
 					overlayOptions: {
 						width: "60%",
-						minWidth: 40,
-						maxHeight: "50%",
+						minWidth: 34,
 						anchor: "center",
 					},
 				},
