@@ -282,6 +282,8 @@ export function registerSlashSelector(pi: ExtensionAPI): void {
 			);
 
 			if (result) {
+				// Paste to editor — sendUserMessage bypasses built-in command
+				// processing (TUI layer), sending raw text to the LLM instead.
 				ctx.ui.pasteToEditor(result);
 			}
 		},
