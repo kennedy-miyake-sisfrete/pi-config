@@ -10,7 +10,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { Component, Theme } from "@earendil-works/pi-coding-agent";
 import type { TUI } from "@earendil-works/pi-tui";
-import { matchesKey, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -176,10 +176,12 @@ export class SlashSelector implements Component {
 		// Color helpers
 		const A = (text: string) => t.fg("accent", text);
 		const M = (text: string) => t.fg("muted", text);
-		// Preenche com espacos ate innerW para que o fundo cubra a linha toda
+		// Preenche com espacos ate innerW; corta se ultrapassar
 		const fill = (text: string) => {
 			const w = visibleWidth(text);
-			return w < innerW ? text + " ".repeat(innerW - w) : text;
+			if (w > innerW) return truncateToWidth(text, innerW, "");
+			if (w < innerW) return text + " ".repeat(innerW - w);
+			return text;
 		};
 		const bar = (text: string) => A("\u2502") + text + A("\u2502");
 		// Linha com fundo de selecao (fill + bg dentro do bar)
