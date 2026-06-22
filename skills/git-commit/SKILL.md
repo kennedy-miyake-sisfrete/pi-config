@@ -87,6 +87,9 @@ git status
   ```bash
   git restore --staged <arquivo-fora-do-escopo>
   ```
+- **Nunca** adicione ao stage arquivos que não foram modificados na requisição atual,
+  mesmo que estejam modified/untracked no `git status`. Eles são mudanças pré-existentes
+  e não pertencem a este commit.
 
 ### 3. Verificar whitespace errors
 
