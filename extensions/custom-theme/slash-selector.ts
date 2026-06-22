@@ -244,7 +244,7 @@ export class SlashSelector implements Component {
 // ---------------------------------------------------------------------------
 
 export function registerSlashSelector(pi: ExtensionAPI): void {
-	pi.registerShortcut("ctrl+/", {
+	pi.registerShortcut("ctrl+p", {
 		description: "Selecionar slash command",
 		handler: async (ctx) => {
 			if (!ctx.hasUI) return;
