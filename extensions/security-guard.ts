@@ -19,6 +19,8 @@ const SENSITIVE_PATTERNS: { pattern: RegExp; severity: string; reason: string }[
   { pattern: /\bparted\b.*\brm\b/, severity: "critical", reason: "Remoção de partição" },
   { pattern: /\bfdisk\b.*\b\/dev\//i, severity: "high", reason: "Manipulação de tabela de partições" },
   { pattern: /\b:\(\)\{ :\|: &\}\;:/, severity: "critical", reason: "Fork bomb" },
+  // =================== GIT ===================
+  { pattern: /\bgit\s+push\b[\s\S]*?\b(main|master)\b/, severity: "critical", reason: "Push direto para branch main/master" },
 
   { pattern: /\bsudo\s+(chmod|chown)\s+-R\s+777\s+\//i, severity: "critical", reason: "sudo chmod/chown -R 777 na raiz" },
   { pattern: /\bsudo\s+(chmod|chown)\s+-R\s+(777|root)\s+\//i, severity: "critical", reason: "sudo chmod/chown recursivo na raiz" },

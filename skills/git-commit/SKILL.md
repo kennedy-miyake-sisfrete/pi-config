@@ -109,6 +109,19 @@ Se precisar de corpo:
 git commit -m "tipo(escopo): título descritivo" -m "Corpo explicando o porquê da mudança. Refs #<numero-tarefa>"
 ```
 
+### 5. Verificar push
+
+```bash
+BRANCH=$(git branch --show-current)
+```
+
+- **Nunca** fazer `git push` para `main` ou `master` diretamente.
+- Se estiver em branch feature, push só deve ir para `origin/<mesma-branch>`:
+  ```bash
+  git push origin "$BRANCH"
+  ```
+- Para mergear em `main`/`master`, usar Pull Request / Merge Request na plataforma.
+
 ## Fluxo completo
 
 ```
