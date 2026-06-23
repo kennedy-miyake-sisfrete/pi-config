@@ -11,10 +11,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerStatusBar } from "./status-bar.ts";
 import { registerBashIndicator } from "./bash-indicator.ts";
-import { registerSlashSelector } from "./slash-selector.ts";
-
 export default function (pi: ExtensionAPI) {
-	registerSlashSelector(pi);
 	registerStatusBar(pi);
 	registerBashIndicator(pi);
 }
