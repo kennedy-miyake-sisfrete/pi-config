@@ -33,43 +33,51 @@ export default function (pi: ExtensionAPI) {
 
 			const output = await search(query, signal ?? undefined);
 
+			// Lines always start with header — success OR failure
+			const lines: string[] = [];
+
 			if (output.results.length === 0) {
+				// ── Failure: same structure as success, explains why ─────
+				lines.push(`## 🔍 Results for "${query}" (failed)`);
+				lines.push("");
+				lines.push(output.error ?? "No results returned.");
+				lines.push("");
+				lines.push("Suggestions:");
+				lines.push("- Try a different query with more specific terms");
+				lines.push("- DuckDuckGo may be blocking repeated requests — wait before retrying");
+				lines.push("- Check your internet connection");
+
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text:
-								`## ❌ No results for "${query}"\n\n` +
-								`DuckDuckGo returned no results. This could mean:\n` +
-								`- The query is too specific — try broader terms\n` +
-								`- DuckDuckGo blocked the request — try again later\n` +
-								`- A network error occurred`,
-						},
-					],
-					isError: true,
-					details: { query: output.query, source: output.source, results: [] },
+					content: [{ type: "text" as const, text: lines.join("\n") }],
+					// Note: isError intentionally omitted — error is communicated
+					// via content in the same format as success.
+					details: { query: output.query, source: output.source, results: [], error: output.error },
 				};
 			}
 
-			// Build a clean text summary for the LLM
-			const lines = output.results.map(
-				(r, i) =>
-					`${i + 1}. **${r.title}**\n   URL: ${r.url}\n   ${r.snippet}`,
-			);
+			// ── Success ───────────────────────────────────────────────
+			lines.push(`## 🔍 Results for "${query}" (${output.source})`);
+			lines.push("");
+
+			if (output.error) {
+				// Fallback: html worked but lite failed — user should know
+				lines.push(`> Note: ${output.error}`);
+				lines.push("");
+			}
+
+			for (const [i, r] of output.results.entries()) {
+				lines.push(`${i + 1}. **${r.title}**`);
+				lines.push(`   URL: ${r.url}`);
+				lines.push(`   ${r.snippet}`);
+			}
 
 			return {
-				content: [
-					{
-						type: "text" as const,
-						text:
-							`## 🔍 Results for "${query}" (${output.source})\n\n` +
-							lines.join("\n\n"),
-					},
-				],
+				content: [{ type: "text" as const, text: lines.join("\n") }],
 				details: {
 					query: output.query,
 					source: output.source,
 					results: output.results,
+					error: output.error,
 				},
 			};
 		},
@@ -103,26 +111,55 @@ export default function (pi: ExtensionAPI) {
 					content: [
 						{
 							type: "text" as const,
-							text: "## ❌ web_fetch: no URLs provided\n\nPass at least one URL in the `urls` parameter.",
+							text:
+								`## 🔍 web_fetch — no URLs provided\n\n` +
+								`Pass at least one URL in the \`urls\` parameter.`,
 						},
 					],
-					isError: true,
 					details: {},
 				};
 			}
 
-			const output = await fetchPages(urls, signal ?? undefined);
+			let output;
+			try {
+				output = await fetchPages(urls, signal ?? undefined);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text:
+								`## 🔍 web_fetch — failed\n\n` +
+								`Could not start fetch operation.\n` +
+								`Error: ${msg}`,
+						},
+					],
+					details: { error: msg },
+				};
+			}
 
-			// Build human-readable summary
+			// Build human-readable summary — same format whether success or failure
 			const lines: string[] = [];
-			lines.push(`Fetched ${output.total} URLs → ${output.outputDir}`);
+
+			if (output.succeeded === 0 && output.failed > 0) {
+				lines.push(`## 🔍 web_fetch — all ${output.total} URLs failed`);
+				lines.push("");
+				lines.push("Every URL returned an error. This may indicate:");
+				lines.push("- Network connectivity issues");
+				lines.push("- The target sites are blocking automated requests");
+				lines.push("- Invalid or expired URLs");
+				lines.push("");
+			} else {
+				lines.push(`Fetched ${output.total} URLs → ${output.outputDir}`);
+			}
 			lines.push("");
 
 			for (const r of output.results) {
 				if (r.file && r.size !== undefined) {
 					const sizeKB = (r.size / 1024).toFixed(1);
-					lines.push(`  ✅ ${r.url}`);
-					lines.push(`     → ${r.file} (${sizeKB} KB)`);
+					lines.push(`  ✅ ${r.file} (${sizeKB} KB)`);
+					lines.push(`     ${r.url}`);
 				} else if (r.error) {
 					lines.push(`  ❌ ${r.url}`);
 					lines.push(`     → ${r.error}`);
@@ -135,17 +172,15 @@ export default function (pi: ExtensionAPI) {
 			lines.push(
 				`Summary: ${output.succeeded} succeeded, ${output.failed} failed out of ${output.total}.`,
 			);
-			lines.push(
-				`Use \`read\` to inspect the saved files under ${output.outputDir}/`,
-			);
+
+			if (output.succeeded > 0) {
+				lines.push(
+					`Use \`read\` to inspect the saved files under ${output.outputDir}/`,
+				);
+			}
 
 			return {
-				content: [
-					{
-						type: "text" as const,
-						text: lines.join("\n"),
-					},
-				],
+				content: [{ type: "text" as const, text: lines.join("\n") }],
 				details: {
 					outputDir: output.outputDir,
 					total: output.total,

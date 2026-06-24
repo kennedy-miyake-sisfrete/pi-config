@@ -22,6 +22,14 @@ export interface SearchOutput {
 	query: string;
 	source: "lite" | "html";
 	results: SearchResult[];
+	/** Human-readable error message when all endpoints failed */
+	error?: string;
+}
+
+/** Internal result from a single endpoint attempt */
+interface EndpointResult {
+	results: SearchResult[];
+	error?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,19 +164,25 @@ export function parseHtmlEndpoint(html: string): SearchResult[] {
 /**
  * Search via DuckDuckGo Lite.
  */
-async function searchLite(query: string, signal?: AbortSignal): Promise<SearchResult[] | null> {
+async function searchLite(query: string, signal?: AbortSignal): Promise<EndpointResult> {
 	try {
 		const body = new URLSearchParams({ q: query });
 		const response = await postForm("https://lite.duckduckgo.com/lite/", body, signal);
 
-		if (!response.ok) return null;
+		if (!response.ok) {
+			return { results: [], error: `HTTP ${response.status}` };
+		}
 
 		const html = await response.text();
 		const results = parseLiteHtml(html);
 
-		return results.length > 0 ? results : null;
-	} catch {
-		return null;
+		if (results.length === 0) {
+			return { results: [], error: "no results found" };
+		}
+
+		return { results };
+	} catch (err) {
+		return { results: [], error: err instanceof Error ? err.message : String(err) };
 	}
 }
 
@@ -177,19 +191,25 @@ async function searchLite(query: string, signal?: AbortSignal): Promise<SearchRe
  *
  * Note: the `b=` parameter is sent empty (DDG expects it).
  */
-async function searchHtml(query: string, signal?: AbortSignal): Promise<SearchResult[] | null> {
+async function searchHtml(query: string, signal?: AbortSignal): Promise<EndpointResult> {
 	try {
 		const body = new URLSearchParams({ q: query, b: "" });
 		const response = await postForm("https://html.duckduckgo.com/html", body, signal);
 
-		if (!response.ok) return null;
+		if (!response.ok) {
+			return { results: [], error: `HTTP ${response.status}` };
+		}
 
 		const html = await response.text();
 		const results = parseHtmlEndpoint(html);
 
-		return results.length > 0 ? results : null;
-	} catch {
-		return null;
+		if (results.length === 0) {
+			return { results: [], error: "no results found" };
+		}
+
+		return { results };
+	} catch (err) {
+		return { results: [], error: err instanceof Error ? err.message : String(err) };
 	}
 }
 
@@ -207,24 +227,30 @@ export async function search(
 	query: string,
 	signal?: AbortSignal,
 ): Promise<SearchOutput> {
-	let results: SearchResult[] | null = null;
-	let source: "lite" | "html" = "lite";
+	// 1. Try lite endpoint
+	const lite = await searchLite(query, signal);
 
-	// 1. Try lite
-	results = await searchLite(query, signal);
-	if (results) {
-		source = "lite";
+	if (lite.results.length > 0) {
+		return { query, source: "lite", results: lite.results };
 	}
 
-	// 2. Fallback to html
-	if (!results) {
-		results = await searchHtml(query, signal);
-		source = "html";
+	// 2. Fallback to html endpoint
+	const html = await searchHtml(query, signal);
+
+	if (html.results.length > 0) {
+		return {
+			query,
+			source: "html",
+			results: html.results,
+			error: `lite endpoint failed: ${lite.error}`,
+		};
 	}
 
+	// 3. Both failed
 	return {
 		query,
-		source,
-		results: results ?? [],
+		source: "html",
+		results: [],
+		error: `DuckDuckGo unreachable. lite: ${lite.error ?? "unknown"} | html: ${html.error ?? "unknown"}`,
 	};
 }
