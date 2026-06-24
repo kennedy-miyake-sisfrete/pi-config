@@ -9,6 +9,7 @@
 import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { search } from "./search";
+import { fetchPages } from "./fetch";
 
 export default function (pi: ExtensionAPI) {
 	// ── Tool: web_search ───────────────────────────────────────────────
@@ -74,31 +75,84 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	// ── Tool: web_fetch (placeholder) ──────────────────────────────────
-	// Will be implemented in the next session.
+	// ── Tool: web_fetch ───────────────────────────────────────────────
 	pi.registerTool({
 		name: "web_fetch",
 		label: "Web Fetch",
 		description:
-			"[NOT YET IMPLEMENTED] Fetch full page content from URLs. Will extract clean text " +
-			"from each page and save to /tmp/.",
+			"Fetch full page content from a list of URLs. " +
+			"Extracts clean text from each page (strips HTML tags, scripts, navigation) " +
+			"and saves to /tmp/page_<date>_<random>/. " +
+			"Processes up to 10 URLs in parallel; excess URLs are queued. " +
+			"Each request uses a random User-Agent and a small random delay to avoid blocking. " +
+			"Call after web_search to get the actual content of the URLs found.",
 
 		parameters: Type.Object({
 			urls: Type.Array(Type.String(), {
-				description: "URLs to fetch content from",
+				description:
+					"URLs to fetch — pass all collected URLs in one call. " +
+					"Max 10 concurrent, rest queued automatically.",
 			}),
 		}),
 
-		async execute() {
+		async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
+			const { urls } = params as { urls: string[] };
+
+			if (!urls || urls.length === 0) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: "## ❌ web_fetch: no URLs provided\n\nPass at least one URL in the `urls` parameter.",
+						},
+					],
+					isError: true,
+					details: {},
+				};
+			}
+
+			const output = await fetchPages(urls, signal ?? undefined);
+
+			// Build human-readable summary
+			const lines: string[] = [];
+			lines.push(`Fetched ${output.total} URLs → ${output.outputDir}`);
+			lines.push("");
+
+			for (const r of output.results) {
+				if (r.file && r.size !== undefined) {
+					const sizeKB = (r.size / 1024).toFixed(1);
+					lines.push(`  ✅ ${r.url}`);
+					lines.push(`     → ${r.file} (${sizeKB} KB)`);
+				} else if (r.error) {
+					lines.push(`  ❌ ${r.url}`);
+					lines.push(`     → ${r.error}`);
+				} else {
+					lines.push(`  ⚠️  ${r.url} — unknown state`);
+				}
+			}
+
+			lines.push("");
+			lines.push(
+				`Summary: ${output.succeeded} succeeded, ${output.failed} failed out of ${output.total}.`,
+			);
+			lines.push(
+				`Use \`read\` to inspect the saved files under ${output.outputDir}/`,
+			);
+
 			return {
 				content: [
 					{
 						type: "text" as const,
-						text: "web_fetch is not yet implemented. Please try again later.",
+						text: lines.join("\n"),
 					},
 				],
-				isError: true,
-				details: {},
+				details: {
+					outputDir: output.outputDir,
+					total: output.total,
+					succeeded: output.succeeded,
+					failed: output.failed,
+					results: output.results,
+				},
 			};
 		},
 	});
