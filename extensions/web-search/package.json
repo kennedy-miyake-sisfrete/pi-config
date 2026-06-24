@@ -1,0 +1,16 @@
+{
+  "name": "web-search-extension",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
+  }
+}
