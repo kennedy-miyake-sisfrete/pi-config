@@ -20,8 +20,8 @@ export interface QueryRecord {
 	toolCallId: string;
 	query: string;
 	status: "pending" | "done" | "error";
-	resultCount?: number;
-	error?: string;
+	resultCount?: number;	error?: string;
+	discoveredUrls?: string[];
 }
 
 export interface FetchRecord {
@@ -97,6 +97,31 @@ function formatEmpty(goal: string): string {
 	].join("\n");
 }
 
+/** All unique URLs discovered across all done searches. */
+function getDiscoveredUrls(): string[] {
+	const seen = new Set<string>();
+	for (const q of currentState.queries.values()) {
+		if (q.discoveredUrls) {
+			for (const url of q.discoveredUrls) {
+				seen.add(url);
+			}
+		}
+	}
+	return [...seen];
+}
+
+/** Set of URLs that have been submitted for fetch (any status). */
+function getSubmittedFetchUrls(): Set<string> {
+	return new Set([...currentState.fetches.values()].map((f) => f.url));
+}
+
+/** URLs discovered but not yet submitted to web_fetch. */
+function getNotYetFetched(): string[] {
+	const discovered = getDiscoveredUrls();
+	const submitted = getSubmittedFetchUrls();
+	return discovered.filter((url) => !submitted.has(url));
+}
+
 function formatState(): string {
 	if (currentState.goal === null) {
 		return formatInactive();
@@ -106,20 +131,25 @@ function formatState(): string {
 	const queries = [...currentState.queries.values()];
 	const fetches = [...currentState.fetches.values()];
 
-	// Counts for header
+	// Counts
 	const pendingQ = queries.filter((q) => q.status === "pending").length;
 	const doneQ = queries.filter((q) => q.status === "done").length;
 	const errorQ = queries.filter((q) => q.status === "error").length;
 	const totalQ = queries.length;
 
+	const pendingF = fetches.filter((f) => f.status === "pending").length;
 	const doneF = fetches.filter((f) => f.status === "done").length;
 	const errorF = fetches.filter((f) => f.status === "error").length;
 	const totalF = fetches.length;
+
+	const notYetFetched = getNotYetFetched();
 
 	const lines: string[] = [];
 
 	lines.push(`## 🧠 Research: "${goal}"`);
 	lines.push("");
+
+	// ── Searches ─────────────────────────────────────────────────────
 	lines.push(`### Searches (${totalQ})`);
 
 	if (totalQ === 0) {
@@ -138,6 +168,24 @@ function formatState(): string {
 		}
 	}
 
+	// ── Discovered URLs ──────────────────────────────────────────────
+	lines.push("");
+	if (notYetFetched.length > 0) {
+		lines.push(`### Discovered URLs (${notYetFetched.length} not yet fetched)`);
+		for (const url of notYetFetched) {
+			lines.push(`  🔗 ${url}`);
+		}
+	} else if (totalQ > 0) {
+		lines.push("### Discovered URLs");
+		const allDiscovered = getDiscoveredUrls();
+		if (allDiscovered.length === 0) {
+			lines.push("No URLs discovered from searches.");
+		} else {
+			lines.push(`All ${allDiscovered.length} discovered URLs have been submitted for fetch.`);
+		}
+	}
+
+	// ── Pages Fetched ────────────────────────────────────────────────
 	lines.push("");
 	lines.push(`### Pages Fetched (${totalF})`);
 
@@ -158,7 +206,7 @@ function formatState(): string {
 		}
 	}
 
-	// Suggestions based on state
+	// ── Suggestions ──────────────────────────────────────────────────
 	lines.push("");
 	lines.push("### Suggestions");
 
@@ -170,17 +218,20 @@ function formatState(): string {
 		if (pendingQ > 0) {
 			lines.push(`- Wait for ${pendingQ} pending search(es) to complete`);
 		}
+		if (pendingF > 0) {
+			lines.push(`- Wait for ${pendingF} pending page fetch(es) to complete`);
+		}
 		if (errorQ > 0) {
 			lines.push(`- Retry ${errorQ} failed search(es) with adjusted terms`);
 		}
-		if (doneQ > 0 && totalF === 0) {
-			lines.push("- **web_fetch** the discovered URLs from search results");
+		if (errorF > 0) {
+			lines.push(`- ${errorF} page fetch(es) failed — check URLs for typos or access`);
 		}
-		if (doneQ > 0 && totalF > 0 && errorF === totalF) {
-			lines.push("- All fetches failed — check URLs or network");
+		if (doneQ > 0 && notYetFetched.length > 0) {
+			lines.push(`- **web_fetch** ${notYetFetched.length} discovered URL(s) to get page content`);
 		}
-		if (doneQ > 0 && doneF > 0) {
-			lines.push("- Research data collected — review findings or refine further");
+		if (doneQ > 0 && doneF > 0 && notYetFetched.length === 0 && pendingQ === 0 && pendingF === 0) {
+			lines.push("- Research complete — summarize findings for the user");
 		}
 	}
 
@@ -294,7 +345,7 @@ function registerListeners(pi: ExtensionAPI): void {
 			if (!record) return;
 
 			const details = event.details as {
-				results?: Array<unknown>;
+				results?: Array<{ url: string; title?: string; snippet?: string }>;
 				error?: string;
 			};
 
@@ -307,7 +358,9 @@ function registerListeners(pi: ExtensionAPI): void {
 				record.resultCount = 0;
 			} else {
 				record.status = "done";
-				record.resultCount = details.results?.length ?? 0;
+				const results = details.results ?? [];
+				record.resultCount = results.length;
+				record.discoveredUrls = results.map((r) => r.url).filter(Boolean);
 			}
 		}
 

@@ -603,3 +603,393 @@ describe("state query after events", () => {
 		expect(text).toContain("https_a_com.txt");
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Phase 3 — discoveredUrls and contextual suggestions
+// ---------------------------------------------------------------------------
+describe("discovered URLs tracking", () => {
+	beforeEach(() => {
+		__resetState();
+	});
+
+	it("stores discoveredUrls from web_search results", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+					{ title: "B", url: "https://b.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		const record = __getState().queries.get("call-1")!;
+		expect(record.discoveredUrls).toEqual([
+			"https://a.com",
+			"https://b.com",
+		]);
+	});
+
+	it("collects unique discovered URLs across multiple queries", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		// Two searches that discover some of the same URLs
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-2",
+			input: { query: "more tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-2",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+					{ title: "C", url: "https://c.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		// Query state and check discovered URLs section
+		const result = await tool.execute("id3", {}, undefined);
+		const text = result.content[0].text;
+
+		// Both URLs discovered but none submitted for fetch yet
+		expect(text).toContain("Discovered URLs (2 not yet fetched)");
+		expect(text).toContain("https://a.com");
+		expect(text).toContain("https://c.com");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Suggestions
+// ---------------------------------------------------------------------------
+describe("suggestions", () => {
+	beforeEach(() => {
+		__resetState();
+	});
+
+	it("suggests web_fetch for discovered URLs not yet fetched", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+					{ title: "B", url: "https://b.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		const result = await tool.execute("id1", {}, undefined);
+		const text = result.content[0].text;
+
+		expect(text).toContain("- **web_fetch** 2 discovered URL(s) to get page content");
+	});
+
+	it("suggests research complete when all searches and fetches are done", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		// Search
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		// Fetch the discovered URL
+		await api.emit("tool_call", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			input: { urls: ["https://a.com"] },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			details: {
+				results: [
+					{ url: "https://a.com", file: "a.txt", size: 512, status: 200 },
+				],
+			},
+			isError: false,
+		});
+
+		const result = await tool.execute("id2", {}, undefined);
+		const text = result.content[0].text;
+
+		expect(text).toContain("- Research complete — summarize findings for the user");
+	});
+
+	it("suggests waiting for pending fetches", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		// Search
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		// Fetch started but not completed
+		await api.emit("tool_call", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			input: { urls: ["https://a.com"] },
+		});
+
+		const result = await tool.execute("id1", {}, undefined);
+		const text = result.content[0].text;
+
+		expect(text).toContain("- Wait for 1 pending page fetch(es) to complete");
+	});
+
+	it("suggests checking URLs when all fetches fail", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "A", url: "https://a.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		await api.emit("tool_call", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			input: { urls: ["https://a.com"] },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			details: {
+				results: [
+					{ url: "https://a.com", error: "HTTP 404" },
+				],
+			},
+			isError: false,
+		});
+
+		const result = await tool.execute("id1", {}, undefined);
+		const text = result.content[0].text;
+
+		expect(text).toContain("- 1 page fetch(es) failed — check URLs for typos or access");
+	});
+
+	it("suggests retrying failed searches", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+		await tool.execute("id0", { goal: "research" }, undefined);
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "broken query" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: { error: "HTTP 403" },
+			isError: true,
+		});
+
+		const result = await tool.execute("id1", {}, undefined);
+		const text = result.content[0].text;
+
+		expect(text).toContain("- Retry 1 failed search(es) with adjusted terms");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Integration: complete research flow
+// ---------------------------------------------------------------------------
+describe("complete research flow", () => {
+	beforeEach(() => {
+		__resetState();
+	});
+
+	it("shows full state after search + fetch cycle", async () => {
+		const { registerWebAgent } = await loadAgent();
+		const api = createFakeAPI();
+		registerWebAgent(api);
+
+		const tool = api.getTool("web_agent")!;
+
+		// 1. Start session
+		await tool.execute("id0", { goal: "Find CLI tools" }, undefined);
+
+		// 2. Two searches
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			input: { query: "CLI tools" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-1",
+			details: {
+				results: [
+					{ title: "Tool A", url: "https://a.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		await api.emit("tool_call", {
+			toolName: "web_search",
+			toolCallId: "call-2",
+			input: { query: "Unix replacements" },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_search",
+			toolCallId: "call-2",
+			details: {
+				results: [
+					{ title: "Tool B", url: "https://b.com", snippet: "desc" },
+					{ title: "Tool C", url: "https://c.com", snippet: "desc" },
+				],
+			},
+			isError: false,
+		});
+
+		// 3. Fetch two of the discovered URLs
+		await api.emit("tool_call", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			input: { urls: ["https://a.com", "https://b.com"] },
+		});
+		await api.emit("tool_result", {
+			toolName: "web_fetch",
+			toolCallId: "fetch-1",
+			details: {
+				results: [
+					{ url: "https://a.com", file: "a.txt", size: 1024, status: 200 },
+					{ url: "https://b.com", file: "b.txt", size: 2048, status: 200 },
+				],
+			},
+			isError: false,
+		});
+
+		// 4. Query state
+		const result = await tool.execute("id3", {}, undefined);
+		const text = result.content[0].text;
+
+		// Header
+		expect(text).toContain('Research: "Find CLI tools"');
+
+		// Searches
+		expect(text).toContain("Searches (2)");
+		expect(text).toContain('"CLI tools"');
+		expect(text).toContain('"Unix replacements"');
+
+		// Discovered URLs — c.com not yet fetched
+		expect(text).toContain("Discovered URLs (1 not yet fetched)");
+		expect(text).toContain("https://c.com");
+
+		// Pages Fetched
+		expect(text).toContain("Pages Fetched (2)");
+		expect(text).toContain("a.txt");
+		expect(text).toContain("b.txt");
+
+		// Suggestions
+		expect(text).toContain("- **web_fetch** 1 discovered URL(s) to get page content");
+
+		// Details
+		expect(result.details.goal).toBe("Find CLI tools");
+	});
+});
