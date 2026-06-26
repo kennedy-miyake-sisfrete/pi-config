@@ -43,12 +43,9 @@ async function postForm(
 	const controller = new AbortController();
 
 	// Link the external signal so Esc works
+	const abortHandler = () => controller.abort(signal?.reason);
 	if (signal) {
-		signal.addEventListener(
-			"abort",
-			() => controller.abort(signal.reason),
-			{ once: true },
-		);
+		signal.addEventListener("abort", abortHandler, { once: true });
 	}
 
 	// Timeout timer
@@ -73,7 +70,7 @@ async function postForm(
 	} finally {
 		clearTimeout(timer);
 		if (signal) {
-			signal.removeEventListener("abort", () => controller.abort(signal.reason));
+			signal.removeEventListener("abort", abortHandler);
 		}
 	}
 }
