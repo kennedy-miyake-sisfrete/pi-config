@@ -5,7 +5,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseLiteHtml, parseHtmlEndpoint, search } from "../search";
+
+// Mock randomDelay so tests run instantly (no real setTimeout)
+vi.mock("../utils", async (importOriginal) => {
+	const actual = (await importOriginal()) as Record<string, unknown>;
+	return {
+		...actual,
+		randomDelay: vi.fn().mockResolvedValue(undefined),
+		throttleSearch: vi.fn().mockResolvedValue(undefined),
+	};
+});
+
+import { parseLiteHtml, parseHtmlEndpoint, search, isBlockPage } from "../search";
 
 // ---------------------------------------------------------------------------
 // Mock HTML fixtures — realistic DuckDuckGo responses
@@ -85,6 +96,35 @@ const LITE_NO_RESULTS_HTML = `<!DOCTYPE html>
 </div>
 </body>
 </html>`;
+
+// ---------------------------------------------------------------------------
+// isBlockPage
+// ---------------------------------------------------------------------------
+describe("isBlockPage", () => {
+	it("returns false for normal search results", () => {
+		expect(isBlockPage("<html><body><div class=\"result\">...</div></body></html>")).toBe(false);
+	});
+
+	it("returns true when page contains captcha text", () => {
+		expect(isBlockPage("Please confirm that you are a human")).toBe(true);
+	});
+
+	it("returns true when page mentions unusual traffic", () => {
+		expect(isBlockPage("Our systems have detected unusual traffic from your network")).toBe(true);
+	});
+
+	it("returns true when page mentions blocked", () => {
+		expect(isBlockPage("This page has been blocked due to automated requests")).toBe(true);
+	});
+
+	it("returns false for empty string", () => {
+		expect(isBlockPage("")).toBe(false);
+	});
+
+	it("returns false for generic HTML without block indicators", () => {
+		expect(isBlockPage("<html><body><p>Nothing here</p></body></html>")).toBe(false);
+	});
+});
 
 // ---------------------------------------------------------------------------
 // parseLiteHtml
@@ -305,6 +345,48 @@ describe("search — integration with mocked fetch", () => {
 		expect(result.results).toEqual([]);
 		expect(result.source).toBe("html"); // last attempted source
 		expect(mockFetch).toHaveBeenCalledTimes(2); // tried both
+
+		vi.unstubAllGlobals();
+	});
+
+	it("detects block page and returns BLOCKED error", async () => {
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			text: async () =>
+				"<html><body>Please confirm that you are a human</body></html>",
+		});
+		vi.stubGlobal("fetch", mockFetch);
+
+		const result = await search("query");
+
+		expect(result.results).toEqual([]);
+		expect(result.error).toContain("BLOCKED");
+		expect(mockFetch).toHaveBeenCalledTimes(2); // lite blocked → fallback to html blocked too
+
+		vi.unstubAllGlobals();
+	});
+
+	it("falls back to html when lite returns block page", async () => {
+		const mockFetch = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				text: async () =>
+					"<html><body>Please confirm that you are a human</body></html>",
+			})
+			.mockResolvedValueOnce({
+				ok: true,
+				text: async () => HTML_ENDPOINT_FIXTURE,
+			});
+		vi.stubGlobal("fetch", mockFetch);
+
+		const result = await search("query");
+
+		expect(result.source).toBe("html");
+		expect(result.results).toHaveLength(2);
+		expect(mockFetch).toHaveBeenCalledTimes(2);
 
 		vi.unstubAllGlobals();
 	});

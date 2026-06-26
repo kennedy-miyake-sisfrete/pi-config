@@ -7,7 +7,7 @@
  */
 
 import * as cheerio from "cheerio";
-import { randomUserAgent, SEARCH_TIMEOUT_MS } from "./utils";
+import { randomUserAgent, randomDelay, throttleSearch, SEARCH_TIMEOUT_MS } from "./utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,6 +48,9 @@ async function postForm(
 		signal.addEventListener("abort", abortHandler, { once: true });
 	}
 
+	// Throttle — random delay + minimum interval between requests
+	await Promise.all([randomDelay(), throttleSearch()]);
+
 	// Timeout timer
 	const timer = setTimeout(() => controller.abort(new Error("TIMEOUT")), SEARCH_TIMEOUT_MS);
 
@@ -73,6 +76,30 @@ async function postForm(
 			signal.removeEventListener("abort", abortHandler);
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Captcha / block-page detection
+// ---------------------------------------------------------------------------
+
+const BLOCK_INDICATORS = [
+	"please confirm that you are a human",
+	"unusual traffic",
+	"captcha",
+	"please try again later",
+	"automated requests",
+	"blocked",
+	"our systems have detected",
+];
+
+/**
+ * Check if the response HTML is a captcha, block, or rate-limit page
+ * rather than actual search results.
+ */
+/** @visibleForTesting */
+export function isBlockPage(html: string): boolean {
+	const lower = html.toLowerCase();
+	return BLOCK_INDICATORS.some((indicator) => lower.includes(indicator));
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +198,11 @@ async function searchLite(query: string, signal?: AbortSignal): Promise<Endpoint
 		}
 
 		const html = await response.text();
+
+		if (isBlockPage(html)) {
+			return { results: [], error: "BLOCKED — DuckDuckGo returned a captcha or rate-limit page. Wait before retrying." };
+		}
+
 		const results = parseLiteHtml(html);
 
 		if (results.length === 0) {
@@ -198,6 +230,11 @@ async function searchHtml(query: string, signal?: AbortSignal): Promise<Endpoint
 		}
 
 		const html = await response.text();
+
+		if (isBlockPage(html)) {
+			return { results: [], error: "BLOCKED — DuckDuckGo returned a captcha or rate-limit page. Wait before retrying." };
+		}
+
 		const results = parseHtmlEndpoint(html);
 
 		if (results.length === 0) {
