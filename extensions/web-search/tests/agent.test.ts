@@ -733,7 +733,7 @@ describe("suggestions", () => {
 		const result = await tool.execute("id1", {}, undefined);
 		const text = result.content[0].text;
 
-		expect(text).toContain("- **web_fetch** 2 discovered URL(s) to get page content");
+		expect(text).toContain("- **web_fetch** ALL 2 discovered URL(s) at once using the JSON array above");
 	});
 
 	it("suggests research complete when all searches and fetches are done", async () => {
@@ -987,7 +987,7 @@ describe("complete research flow", () => {
 		expect(text).toContain("b.txt");
 
 		// Suggestions
-		expect(text).toContain("- **web_fetch** 1 discovered URL(s) to get page content");
+		expect(text).toContain("- **web_fetch** ALL 1 discovered URL(s) at once using the JSON array above");
 
 		// Details
 		expect(result.details.goal).toBe("Find CLI tools");

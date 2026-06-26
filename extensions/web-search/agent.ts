@@ -175,6 +175,11 @@ function formatState(): string {
 		for (const url of notYetFetched) {
 			lines.push(`  🔗 ${url}`);
 		}
+		lines.push("");
+		lines.push("Pass ALL URLs below to **web_fetch** in a single call:");
+		lines.push("```json");
+		lines.push(JSON.stringify(notYetFetched, null, 2));
+		lines.push("```");
 	} else if (totalQ > 0) {
 		lines.push("### Discovered URLs");
 		const allDiscovered = getDiscoveredUrls();
@@ -228,7 +233,7 @@ function formatState(): string {
 			lines.push(`- ${errorF} page fetch(es) failed — check URLs for typos or access`);
 		}
 		if (doneQ > 0 && notYetFetched.length > 0) {
-			lines.push(`- **web_fetch** ${notYetFetched.length} discovered URL(s) to get page content`);
+			lines.push(`- **web_fetch** ALL ${notYetFetched.length} discovered URL(s) at once using the JSON array above`);
 		}
 		if (doneQ > 0 && doneF > 0 && notYetFetched.length === 0 && pendingQ === 0 && pendingF === 0) {
 			lines.push("- Research complete — summarize findings for the user");
