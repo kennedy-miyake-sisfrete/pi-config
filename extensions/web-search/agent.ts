@@ -198,6 +198,15 @@ function formatState(): string {
  * (Phase 2+) can distinguish our tools from built-in ones.
  */
 export function registerWebAgent(pi: ExtensionAPI): void {
+	registerTool(pi);
+	registerListeners(pi);
+}
+
+// ---------------------------------------------------------------------------
+// Tool registration
+// ---------------------------------------------------------------------------
+
+function registerTool(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "web_agent",
 		label: "Web Research Agent",
@@ -245,6 +254,89 @@ export function registerWebAgent(pi: ExtensionAPI): void {
 				},
 			};
 		},
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Event listeners — auto-track web_search and web_fetch
+// ---------------------------------------------------------------------------
+
+function registerListeners(pi: ExtensionAPI): void {
+	pi.on("tool_call", async (event) => {
+		if (currentState.goal === null) return;
+
+		if (event.toolName === "web_search") {
+			const query = (event.input as { query: string }).query;
+			currentState.queries.set(event.toolCallId, {
+				toolCallId: event.toolCallId,
+				query,
+				status: "pending",
+			});
+		}
+
+		if (event.toolName === "web_fetch") {
+			const urls = (event.input as { urls: string[] }).urls;
+			for (const url of urls) {
+				currentState.fetches.set(`${event.toolCallId}:${url}`, {
+					toolCallId: event.toolCallId,
+					url,
+					status: "pending",
+				});
+			}
+		}
+	});
+
+	pi.on("tool_result", async (event) => {
+		if (currentState.goal === null) return;
+
+		if (event.toolName === "web_search") {
+			const record = currentState.queries.get(event.toolCallId);
+			if (!record) return;
+
+			const details = event.details as {
+				results?: Array<unknown>;
+				error?: string;
+			};
+
+			if (event.isError) {
+				record.status = "error";
+				record.error = details.error ?? "unknown error";
+			} else if (details.error && !details.results?.length) {
+				record.status = "error";
+				record.error = details.error;
+				record.resultCount = 0;
+			} else {
+				record.status = "done";
+				record.resultCount = details.results?.length ?? 0;
+			}
+		}
+
+		if (event.toolName === "web_fetch") {
+			const details = event.details as {
+				results?: Array<{
+					url: string;
+					file?: string;
+					size?: number;
+					error?: string;
+				}>;
+			};
+
+			const results = details.results ?? [];
+			for (const r of results) {
+				const key = `${event.toolCallId}:${r.url}`;
+				const record = currentState.fetches.get(key);
+				if (!record) continue;
+
+				if (r.error) {
+					record.status = "error";
+					record.error = r.error;
+				} else {
+					record.status = "done";
+					record.file = r.file;
+					record.size = r.size;
+				}
+			}
+		}
 	});
 }
 
