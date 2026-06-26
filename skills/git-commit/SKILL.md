@@ -8,16 +8,18 @@ description: Faz commits semânticos seguindo Conventional Commits com formato p
 ## Formato
 
 ```
-tipo(escopo): título descritivo
+tipo(escopo): Título descritivo em PT-BR
 
-Corpo opcional — explica o porquê, não o quê.
+- Bullet com cada alteração importante.
+- Outra alteração importante.
+- Refs #<numero-tarefa> (se aplicável)
 ```
 
 Onde:
 - `tipo` — um dos tipos abaixo
 - `escopo` — arquivo/diretório principal alterado (ex.: `auth`, `api/orders`, `docker-compose.yml`)
-- `título` — ≤ 72 caracteres, imperativo, descreve **o que** mudou
-- `corpo` — opcional, explica **por que** mudou (o diff já mostra o quê)
+- `título` — ≤ 72 caracteres, imperativo, descreve **o que** mudou, **em PT-BR**
+- `corpo` — **obrigatório** como bullet list. Cada bullet = uma alteração atômica. Explica **o que** foi feito (o diff já mostra o código; os bullets organizam as mudanças).
 
 ### Extração do número da tarefa
 
@@ -59,6 +61,9 @@ O número extraído **não** vai no título do commit. Use apenas para referênc
 - **Corpo explica o porquê.** O diff já mostra o que mudou. O corpo responde *por que* mudou daquela forma.
 - **Um commit = uma mudança atômica.** Não misture refactor com feat no mesmo commit. Se precisar refatorar para implementar uma feat, faça dois commits: primeiro o refactor, depois a feat.
 - **Secrets nunca.** Revise o diff antes de commitar. Nada de .env, tokens, node_modules.
+- **PT-BR obrigatório.** Título e corpo do commit em português brasileiro.
+- **Corpo em bullet list.** Descrição sempre em formato de bullet list (`- `). Cada bullet = uma alteração importante. Ordem cronológica ou lógica. **Sem linha em branco entre bullets** — usar um único `-m` com quebras de linha.
+- **Sem push sem autorização.** Nunca execute `git push`. Só faça push se o usuário solicitar explicitamente.
 - **Surgical Changes.** Toda linha alterada serve ao requisito. Se notar dead code não relacionado, mencione — não comite junto.
 - **Revise antes de commitar.** Sempre rode `git diff --cached` antes de commitar.
 
@@ -99,14 +104,25 @@ git diff --check
 
 ### 4. Commitar
 
+Usar um único `-m` para o corpo, com quebras de linha entre os bullets (sem linha em branco):
+
 ```bash
-git commit -m "tipo(escopo): título descritivo"
+git commit \
+  -m "tipo(escopo): Título descritivo em PT-BR" \
+  -m "- Bullet com alteração 1.
+- Bullet com alteração 2.
+- Refs #<numero-tarefa>"
 ```
 
-Se precisar de corpo:
+Exemplo real:
 
 ```bash
-git commit -m "tipo(escopo): título descritivo" -m "Corpo explicando o porquê da mudança. Refs #<numero-tarefa>"
+git commit \
+  -m "feat(auth): Adiciona rota de login com JWT" \
+  -m "- Implementa POST /auth/login com validação de credenciais.
+- Gera token JWT com expiração de 24h.
+- Adiciona middleware de verificação de token.
+- Refs #25321"
 ```
 
 ### 5. Verificar push
@@ -116,6 +132,7 @@ BRANCH=$(git branch --show-current)
 ```
 
 - **Nunca** fazer `git push` para `main` ou `master` diretamente.
+- **Nunca** executar `git push` sem solicitação explícita do usuário. O commit é o fim do fluxo; push é decisão do usuário.
 - Se estiver em branch feature, push só deve ir para `origin/<mesma-branch>`:
   ```bash
   git push origin "$BRANCH"
@@ -130,5 +147,6 @@ BRANCH=$(git branch --show-current)
 3. git status                          # conferir staged
 4. git diff --cached                   # revisar o diff
 5. git diff --check                    # whitespace
-6. git commit -m "tipo(escopo): msg"   # commitar
+6. git commit -m "tipo(escopo): msg" -m "- bullet 1.\n- bullet 2."  # corpo bullet list, sem linha em branco
+7. [somente se solicitado] git push    # nunca sem autorização explícita
 ```
