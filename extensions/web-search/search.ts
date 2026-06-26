@@ -8,6 +8,7 @@
 
 import * as cheerio from "cheerio";
 import { randomUserAgent, randomDelay, throttleSearch, SEARCH_TIMEOUT_MS } from "./utils";
+import { searchBing, searchBrave } from "./engines";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -252,25 +253,26 @@ async function searchHtml(query: string, signal?: AbortSignal): Promise<Endpoint
 // ---------------------------------------------------------------------------
 
 /**
- * Search DuckDuckGo for the given query.
+ * Search the web for the given query.
  *
- * Strategy: try lite first, fall back to html if lite fails.
- * Returns up to 10 results.
+ * Strategy: try each engine in order until one returns results.
+ *   1. DuckDuckGo Lite
+ *   2. DuckDuckGo HTML (fallback)
+ *   3. Bing RSS (no API key)
+ *   4. Brave Search HTML (no API key)
  */
 export async function search(
 	query: string,
 	signal?: AbortSignal,
 ): Promise<SearchOutput> {
-	// 1. Try lite endpoint
+	// 1. DuckDuckGo Lite
 	const lite = await searchLite(query, signal);
-
 	if (lite.results.length > 0) {
 		return { query, source: "lite", results: lite.results };
 	}
 
-	// 2. Fallback to html endpoint
+	// 2. DuckDuckGo HTML (fallback)
 	const html = await searchHtml(query, signal);
-
 	if (html.results.length > 0) {
 		return {
 			query,
@@ -280,11 +282,37 @@ export async function search(
 		};
 	}
 
-	// 3. Both failed
+	// 3. Bing RSS
+	const bing = await searchBing(query, signal);
+	if (bing.results.length > 0) {
+		return {
+			query,
+			source: "bing",
+			results: bing.results,
+			error: `DDG unreachable. lite: ${lite.error} | html: ${html.error}`,
+		};
+	}
+
+	// 4. Brave Search HTML
+	const brave = await searchBrave(query, signal);
+	if (brave.results.length > 0) {
+		return {
+			query,
+			source: "brave",
+			results: brave.results,
+			error: `DDG unreachable. lite: ${lite.error} | html: ${html.error} | bing: ${bing.error}`,
+		};
+	}
+
+	// 5. All failed
 	return {
 		query,
-		source: "html",
+		source: "brave",
 		results: [],
-		error: `DuckDuckGo unreachable. lite: ${lite.error ?? "unknown"} | html: ${html.error ?? "unknown"}`,
+		error:
+			`All engines failed. ` +
+			`DDG: ${lite.error ?? "?"}/${html.error ?? "?"} | ` +
+			`Bing: ${bing.error ?? "?"} | ` +
+			`Brave: ${brave.error ?? "?"}`,
 	};
 }

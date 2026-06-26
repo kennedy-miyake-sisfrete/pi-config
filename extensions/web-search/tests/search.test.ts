@@ -343,8 +343,8 @@ describe("search — integration with mocked fetch", () => {
 		const result = await search("failing query");
 
 		expect(result.results).toEqual([]);
-		expect(result.source).toBe("html"); // last attempted source
-		expect(mockFetch).toHaveBeenCalledTimes(2); // tried both
+		expect(result.source).toBe("brave"); // last engine in cascade
+		expect(mockFetch).toHaveBeenCalledTimes(4); // lite + html + bing + brave
 
 		vi.unstubAllGlobals();
 	});
@@ -362,7 +362,7 @@ describe("search — integration with mocked fetch", () => {
 
 		expect(result.results).toEqual([]);
 		expect(result.error).toContain("BLOCKED");
-		expect(mockFetch).toHaveBeenCalledTimes(2); // lite blocked → fallback to html blocked too
+		expect(mockFetch).toHaveBeenCalledTimes(4); // lite + html + bing + brave
 
 		vi.unstubAllGlobals();
 	});
