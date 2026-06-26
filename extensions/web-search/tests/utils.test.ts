@@ -10,7 +10,7 @@ import {
 	randomUserAgent,
 	USER_AGENTS,
 	asyncPool,
-} from "./utils";
+} from "../utils";
 
 // ---------------------------------------------------------------------------
 // sanitizeFilename

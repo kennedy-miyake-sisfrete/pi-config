@@ -8,22 +8,22 @@
 // User-Agent Pool — 8 realistas de navegadores modernos
 // ---------------------------------------------------------------------------
 export const USER_AGENTS = [
-	// Chrome 125 — Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-	// Chrome 125 — macOS
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-	// Chrome 125 — Linux
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-	// Firefox 126 — Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
-	// Firefox 126 — macOS
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:126.0) Gecko/20100101 Firefox/126.0",
-	// Firefox 126 — Linux
-	"Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
-	// Safari 17.5 — macOS
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-	// Edge 125 — Windows
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+	// Chrome 135 — Windows
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	// Chrome 135 — macOS
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	// Chrome 135 — Linux
+	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+	// Firefox 140 — Windows
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+	// Firefox 140 — macOS
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:140.0) Gecko/20100101 Firefox/140.0",
+	// Firefox 140 — Linux
+	"Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
+	// Safari 19.0 — macOS
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/19.0 Safari/605.1.15",
+	// Edge 135 — Windows
+	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0",
 ];
 
 /** Pick a random User-Agent from the pool */
@@ -34,8 +34,9 @@ export function randomUserAgent(): string {
 // ---------------------------------------------------------------------------
 // Delay
 // ---------------------------------------------------------------------------
-export const MIN_DELAY_MS = 500;
-export const MAX_DELAY_MS = 2000;
+export const MIN_DELAY_MS = 1500;
+export const MAX_DELAY_MS = 3000;
+export const MIN_SEARCH_INTERVAL_MS = 2000;
 
 /** Wait between `min` and `max` milliseconds (defaults to 500-2000) */
 export function randomDelay(min = MIN_DELAY_MS, max = MAX_DELAY_MS): Promise<void> {
@@ -44,11 +45,31 @@ export function randomDelay(min = MIN_DELAY_MS, max = MAX_DELAY_MS): Promise<voi
 }
 
 // ---------------------------------------------------------------------------
+// Search throttle — minimum spacing between searches
+// ---------------------------------------------------------------------------
+
+let lastSearchTime = 0;
+
+/**
+ * Ensures a minimum interval between consecutive search requests.
+ * Calls queued closer together than `MIN_SEARCH_INTERVAL_MS` are
+ * delayed so they don't hit DuckDuckGo simultaneously.
+ */
+export async function throttleSearch(): Promise<void> {
+	const now = Date.now();
+	const elapsed = now - lastSearchTime;
+	if (elapsed < MIN_SEARCH_INTERVAL_MS) {
+		await new Promise((r) => setTimeout(r, MIN_SEARCH_INTERVAL_MS - elapsed));
+	}
+	lastSearchTime = Date.now();
+}
+
+// ---------------------------------------------------------------------------
 // Timeouts
 // ---------------------------------------------------------------------------
 export const SEARCH_TIMEOUT_MS = 10_000;
 export const FETCH_TIMEOUT_MS = 15_000;
-export const DEFAULT_CONCURRENCY = 10;
+export const DEFAULT_CONCURRENCY = 3;
 
 // ---------------------------------------------------------------------------
 // Filename sanitization

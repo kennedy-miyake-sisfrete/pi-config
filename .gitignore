@@ -14,5 +14,5 @@ Thumbs.db
 # Logs
 *.log
 
-# docs
-features/
+# docs/task
+docs/tasks/

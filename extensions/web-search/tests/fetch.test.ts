@@ -13,7 +13,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 // Mock randomDelay and randomUserAgent so tests run instantly and deterministically
-vi.mock("./utils", async (importOriginal) => {
+vi.mock("../utils", async (importOriginal) => {
 	const actual = (await importOriginal()) as Record<string, unknown>;
 	return {
 		...actual,
@@ -22,7 +22,7 @@ vi.mock("./utils", async (importOriginal) => {
 	};
 });
 
-import { extractText, fetchPages } from "./fetch";
+import { extractText, fetchPages } from "../fetch";
 
 // ---------------------------------------------------------------------------
 // extractText — pure function, no mocking needed

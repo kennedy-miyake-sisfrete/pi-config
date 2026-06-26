@@ -10,6 +10,7 @@ import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { search } from "./search";
 import { fetchPages } from "./fetch";
+import { registerWebAgent } from "./agent";
 
 export default function (pi: ExtensionAPI) {
 	// ── Tool: web_search ───────────────────────────────────────────────
@@ -82,6 +83,9 @@ export default function (pi: ExtensionAPI) {
 			};
 		},
 	});
+
+	// ── Tool: web_agent (research orchestrator) ───────────────────────
+	registerWebAgent(pi);
 
 	// ── Tool: web_fetch ───────────────────────────────────────────────
 	pi.registerTool({

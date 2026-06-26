@@ -1,16 +1,46 @@
 {
-  "name": "web-search-extension",
+  "name": "@offmiijin/pi-web-search",
   "version": "1.0.0",
-  "private": true,
+  "description": "Pi extension — search the web via DuckDuckGo, Bing, and Brave. Returns structured results for LLM consumption.",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "web-search",
+    "duckduckgo",
+    "bing",
+    "brave"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/offmiijin/pi-web-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/offmiijin/pi-web-search/issues"
+  },
+  "homepage": "https://github.com/offmiijin/pi-web-search#readme",
+  "author": "Kennedy Miyake <kennedykaiak57@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "typebox": "^1.3.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
   },
   "pi": {
     "extensions": [
       "./index.ts"
     ]
   },
-  "devDependencies": {
-    "vitest": "^4.1.9"
-  }
+  "files": [
+    "*.ts",
+    "!vitest.config.ts",
+    "tests/",
+    "README.md",
+    "LICENSE"
+  ]
 }
