@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseLiteHtml, parseHtmlEndpoint, search } from "./search";
+import { parseLiteHtml, parseHtmlEndpoint, search } from "../search";
 
 // ---------------------------------------------------------------------------
 // Mock HTML fixtures — realistic DuckDuckGo responses
