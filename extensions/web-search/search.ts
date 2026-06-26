@@ -1,252 +1,36 @@
 /**
- * Web Search Extension — DuckDuckGo Search
+ * Web Search Extension — Search Orchestrator
  *
- * Searches DuckDuckGo via POST and parses HTML results with cheerio.
- * Primary: lite.duckduckgo.com/lite/  —  simpler HTML (tables)
- * Fallback: html.duckduckgo.com/html   —  richer HTML (CSS classes)
+ * Tries each search engine in order until one returns results:
+ *   1. DuckDuckGo Lite
+ *   2. DuckDuckGo HTML (fallback)
+ *   3. Bing RSS
+ *   4. Brave Search HTML
+ *
+ * All engine implementations live in ./engines.
  */
 
-import * as cheerio from "cheerio";
-import { randomUserAgent, randomDelay, throttleSearch, SEARCH_TIMEOUT_MS } from "./utils";
-import { searchBing, searchBrave } from "./engines";
+import type { SearchResult, EngineResult } from "./engines";
+import {
+	searchDDGLite,
+	searchDDGHtml,
+	searchBing,
+	searchBrave,
+} from "./engines";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-export interface SearchResult {
-	title: string;
-	url: string;
-	snippet: string;
-}
-
 export interface SearchOutput {
 	query: string;
-	source: "lite" | "html";
+	source: "lite" | "html" | "bing" | "brave";
 	results: SearchResult[];
 	/** Human-readable error message when all endpoints failed */
 	error?: string;
 }
 
-/** Internal result from a single endpoint attempt */
-interface EndpointResult {
-	results: SearchResult[];
-	error?: string;
-}
-
-// ---------------------------------------------------------------------------
-// HTTP helper — POST form-urlencoded
-// ---------------------------------------------------------------------------
-async function postForm(
-	url: string,
-	body: URLSearchParams,
-	signal?: AbortSignal,
-): Promise<Response> {
-	const controller = new AbortController();
-
-	// Link the external signal so Esc works
-	const abortHandler = () => controller.abort(signal?.reason);
-	if (signal) {
-		signal.addEventListener("abort", abortHandler, { once: true });
-	}
-
-	// Throttle — random delay + minimum interval between requests
-	await Promise.all([randomDelay(), throttleSearch()]);
-
-	// Timeout timer
-	const timer = setTimeout(() => controller.abort(new Error("TIMEOUT")), SEARCH_TIMEOUT_MS);
-
-	try {
-		const response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"User-Agent": randomUserAgent(),
-				"Content-Type": "application/x-www-form-urlencoded",
-				Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-				"Accept-Language": "en-US,en;q=0.9,pt-BR;q=0.8,pt;q=0.7",
-			},
-			body: body.toString(),
-			signal: controller.signal,
-			// Use default redirect=follow — if DDG sends us to a captcha or error page,
-			// the HTML won't parse as results and we'll gracefully return null.
-		});
-
-		return response;
-	} finally {
-		clearTimeout(timer);
-		if (signal) {
-			signal.removeEventListener("abort", abortHandler);
-		}
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Captcha / block-page detection
-// ---------------------------------------------------------------------------
-
-const BLOCK_INDICATORS = [
-	"please confirm that you are a human",
-	"unusual traffic",
-	"captcha",
-	"please try again later",
-	"automated requests",
-	"blocked",
-	"our systems have detected",
-];
-
-/**
- * Check if the response HTML is a captcha, block, or rate-limit page
- * rather than actual search results.
- */
-/** @visibleForTesting */
-export function isBlockPage(html: string): boolean {
-	const lower = html.toLowerCase();
-	return BLOCK_INDICATORS.some((indicator) => lower.includes(indicator));
-}
-
-// ---------------------------------------------------------------------------
-// Parse helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Parse DuckDuckGo Lite HTML (table-based).
- *
- * Structure:
- *   <table> / <tr class="result">
- *     <td class="result-snippet">
- *       <a rel="nofollow" href="URL">TITLE</a>
- *     </td>
- *   </tr>
- *   <tr>
- *     <td class="snippet">SNIPPET</td>
- *   </tr>
- *   ...
- */
-/** @visibleForTesting */
-export function parseLiteHtml(html: string): SearchResult[] {
-	const $ = cheerio.load(html);
-	const results: SearchResult[] = [];
-
-	// Approach: find all <a rel="nofollow"> inside the content table
-	$('a[rel="nofollow"]').each((_i, el) => {
-		const $el = $(el);
-		const url = $el.attr("href")?.trim();
-		const title = $el.text().trim();
-
-		if (!url || !title) return;
-		if (url.startsWith("/")) return; // internal DDG link
-
-		// On DuckDuckGo Lite, each result spans two <tr>s:
-		//   <tr class="result">   → link inside <td class="result-snippet">
-		//   <tr>                  → snippet inside <td class="snippet">
-		// We grab the next <tr> and look for .snippet
-		const $resultRow = $el.closest("tr");
-		const $snippetCell = $resultRow.next("tr").find("td.snippet");
-		const snippet = $snippetCell.first().text().trim();
-
-		results.push({ title, url, snippet });
-	});
-
-	return results;
-}
-
-/**
- * Parse DuckDuckGo HTML endpoint (div-based).
- *
- * Structure:
- *   <div class="result">
- *     <h2 class="result__title">
- *       <a class="result__a" href="URL">TITLE</a>
- *     </h2>
- *     <span class="result__snippet">SNIPPET</span>
- *   </div>
- */
-/** @visibleForTesting */
-export function parseHtmlEndpoint(html: string): SearchResult[] {
-	const $ = cheerio.load(html);
-	const results: SearchResult[] = [];
-
-	$(".result").each((_i, el) => {
-		const $el = $(el);
-		const $link = $el.find(".result__a").first();
-		const url = $link.attr("href")?.trim();
-		const title = $link.text().trim();
-
-		if (!url || !title) return;
-		if (url.startsWith("/")) return;
-
-		const snippet = $el.find(".result__snippet").first().text().trim();
-
-		results.push({ title, url, snippet });
-	});
-
-	return results;
-}
-
-// ---------------------------------------------------------------------------
-// Endpoint functions
-// ---------------------------------------------------------------------------
-
-/**
- * Search via DuckDuckGo Lite.
- */
-async function searchLite(query: string, signal?: AbortSignal): Promise<EndpointResult> {
-	try {
-		const body = new URLSearchParams({ q: query });
-		const response = await postForm("https://lite.duckduckgo.com/lite/", body, signal);
-
-		if (!response.ok) {
-			return { results: [], error: `HTTP ${response.status}` };
-		}
-
-		const html = await response.text();
-
-		if (isBlockPage(html)) {
-			return { results: [], error: "BLOCKED — DuckDuckGo returned a captcha or rate-limit page. Wait before retrying." };
-		}
-
-		const results = parseLiteHtml(html);
-
-		if (results.length === 0) {
-			return { results: [], error: "no results found" };
-		}
-
-		return { results };
-	} catch (err) {
-		return { results: [], error: err instanceof Error ? err.message : String(err) };
-	}
-}
-
-/**
- * Search via DuckDuckGo HTML endpoint.
- *
- * Note: the `b=` parameter is sent empty (DDG expects it).
- */
-async function searchHtml(query: string, signal?: AbortSignal): Promise<EndpointResult> {
-	try {
-		const body = new URLSearchParams({ q: query, b: "" });
-		const response = await postForm("https://html.duckduckgo.com/html", body, signal);
-
-		if (!response.ok) {
-			return { results: [], error: `HTTP ${response.status}` };
-		}
-
-		const html = await response.text();
-
-		if (isBlockPage(html)) {
-			return { results: [], error: "BLOCKED — DuckDuckGo returned a captcha or rate-limit page. Wait before retrying." };
-		}
-
-		const results = parseHtmlEndpoint(html);
-
-		if (results.length === 0) {
-			return { results: [], error: "no results found" };
-		}
-
-		return { results };
-	} catch (err) {
-		return { results: [], error: err instanceof Error ? err.message : String(err) };
-	}
-}
+export { SearchResult };
+export type { EngineResult };
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -266,13 +50,13 @@ export async function search(
 	signal?: AbortSignal,
 ): Promise<SearchOutput> {
 	// 1. DuckDuckGo Lite
-	const lite = await searchLite(query, signal);
+	const lite = await searchDDGLite(query, signal);
 	if (lite.results.length > 0) {
 		return { query, source: "lite", results: lite.results };
 	}
 
 	// 2. DuckDuckGo HTML (fallback)
-	const html = await searchHtml(query, signal);
+	const html = await searchDDGHtml(query, signal);
 	if (html.results.length > 0) {
 		return {
 			query,
