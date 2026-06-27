@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.79.3",
+  "lastChangelogVersion": "0.79.9",
   "defaultProvider": "opencode-go",
   "defaultModel": "deepseek-v4-flash",
   "defaultThinkingLevel": "high",
@@ -15,6 +15,7 @@
   "theme": "miyake-catppuccin",
   "packages": [
     "git:github.com/nicobailon/pi-mcp-adapter",
-    "git:github.com/jonjonrankin/pi-caveman"
+    "git:github.com/jonjonrankin/pi-caveman",
+    "git:github.com/offmiijin/pi-web-search"
   ]
 }
