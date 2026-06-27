@@ -128,8 +128,10 @@ export function registerStatusBar(pi: ExtensionAPI) {
 	let editorRef: ModelInfoEditor | null = null;
 	let sessionTokens = 0;
 	let sessionCost = 0;
+	let footerDataRef: any = null;
 
 	// Escuta evento de bash-mode para mudar cor da borda + texto
+	// E quando bash completa (mode=null), força refresh da branch
 	pi.events.on("custom:bash-mode", ({ mode, text }: { mode: string | null; text?: string | null }) => {
 		if (mode === "visible" || mode === "hidden") {
 			editorRef?.setBorderColor("warning"); // amarelo
@@ -137,6 +139,11 @@ export function registerStatusBar(pi: ExtensionAPI) {
 		} else {
 			editorRef?.setBorderColor(null); // normal
 			editorRef?.setBashDisplay(null, null);
+			// Bash command completou — força refresh da branch sem depender do watcher
+			// O comando (`git checkout`, etc.) já terminou, HEAD já mudou
+			setTimeout(() => {
+				footerDataRef?.refreshGitBranchAsync?.();
+			}, 100);
 		}
 	});
 
@@ -180,6 +187,9 @@ export function registerStatusBar(pi: ExtensionAPI) {
 		});
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
+			// Guarda referência pro FooterDataProvider (uso no force refresh pós-bash)
+			footerDataRef = footerData;
+
 			const renderLine = (width: number): string[] => {
 				const branch = footerData.getGitBranch() || "no-branch";
 
@@ -205,7 +215,8 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			return {
 				render: renderLine,
 				invalidate() {},
-				dispose: footerData.onBranchChange(() => tui.requestRender()),
+				// force=true: renderiza mesmo se outro render pendente (burlaka Gap 1)
+				dispose: footerData.onBranchChange(() => tui.requestRender(true)),
 			};
 		});
 	});
@@ -233,6 +244,12 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			sessionTokens += u.totalTokens;
 			sessionCost += u.cost.total;
 			editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
+		}
+		// Força refresh da branch após resposta do modelo (pega git checkout
+		// executado via bash tool, que não passa por user_bash nem !!)
+		// refreshGitBranchAsync é noop se branch não mudou
+		if (event.message.role === "assistant") {
+			setTimeout(() => footerDataRef?.refreshGitBranchAsync?.(), 100);
 		}
 	});
 }
