@@ -245,5 +245,11 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			sessionCost += u.cost.total;
 			editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
 		}
+		// Força refresh da branch após resposta do modelo (pega git checkout
+		// executado via bash tool, que não passa por user_bash nem !!)
+		// refreshGitBranchAsync é noop se branch não mudou
+		if (event.message.role === "assistant") {
+			setTimeout(() => footerDataRef?.refreshGitBranchAsync?.(), 100);
+		}
 	});
 }
