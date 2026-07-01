@@ -24,6 +24,8 @@ class ModelInfoEditor extends CustomEditor {
 	private sessionCost = 0;
 	private lastInput = 0;
 	private lastOutput = 0;
+	private contextUsage = 0;
+	private contextWindow = 0;
 	private borderKey = "border";
 	private bashDisplay = "";
 	private bashMode: string | null = null;
@@ -55,6 +57,12 @@ class ModelInfoEditor extends CustomEditor {
 		this.modelId = id;
 		this.provider = provider;
 		this.thinking = thinking;
+		this.invalidate();
+	}
+
+	setContextInfo(usage: number, window?: number) {
+		this.contextUsage = usage;
+		if (window !== undefined) this.contextWindow = window;
 		this.invalidate();
 	}
 
@@ -97,7 +105,10 @@ class ModelInfoEditor extends CustomEditor {
 			bashText,
 		].join("");
 
-		const tokenInfo = dimFg(`\u2191 ${formatTokenCount(this.lastInput)}/${formatTokenCount(this.lastOutput)} \u2193 ${formatTokenCount(this.sessionTokens)} $${this.sessionCost.toFixed(2)}`);
+		const ctxStr = this.contextWindow > 0
+			? `${this.uiTheme.fg("muted", `${Math.round(this.contextUsage / this.contextWindow * 100)}% (${formatTokenCount(this.contextUsage)}/${formatTokenCount(this.contextWindow)})`)} `
+			: "";
+		const tokenInfo = dimFg(`${ctxStr}\u2191 ${formatTokenCount(this.lastInput)}/${formatTokenCount(this.lastOutput)} \u2193 ${formatTokenCount(this.sessionTokens)} $${this.sessionCost.toFixed(2)}`);
 
 		const topBorder = mutedFg("\u2500".repeat(width));
 		const bottomBorder = mutedFg("\u2500".repeat(width));
@@ -188,6 +199,9 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			const editor = new ModelInfoEditor(tui, { ...baseTheme, selectList }, keybindings, uiTheme);
 			editorRef = editor;
 			editor.setModelInfo(modelId, provider, currentThinking);
+			const ctxW = ctx.model?.contextWindow || 0;
+			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+			editor.setContextInfo(ctxU, ctxW);
 			editor.setTokenInfo(0, 0, sessionTokens, sessionCost);
 			return editor;
 		});
@@ -242,14 +256,19 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			event.model.provider || "",
 			currentThinking,
 		);
+		const ctxW = event.model.contextWindow || 0;
+		const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+		editorRef?.setContextInfo(ctxU, ctxW);
 	});
 
-	pi.on("message_end", async (event, _ctx) => {
+	pi.on("message_end", async (event, ctx) => {
 		if (event.message.role === "assistant" && event.message.usage) {
 			const u = event.message.usage;
 			sessionTokens += u.totalTokens;
 			sessionCost += u.cost.total;
 			editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
+			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+			editorRef?.setContextInfo(ctxU);
 		}
 		// Força refresh da branch após resposta do modelo (pega git checkout
 		// executado via bash tool, que não passa por user_bash nem !!)
