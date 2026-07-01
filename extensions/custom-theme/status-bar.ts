@@ -9,6 +9,21 @@ import type { EditorTheme, KeybindingsManager, SelectListTheme, TUI } from "@ear
 import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
 import path from "node:path";
 
+function formatDateTime(date: Date): string {
+	const d = String(date.getDate()).padStart(2, "0");
+	const m = String(date.getMonth() + 1).padStart(2, "0");
+	const y = date.getFullYear();
+	const h = String(date.getHours()).padStart(2, "0");
+	const min = String(date.getMinutes()).padStart(2, "0");
+	return `${d}/${m}/${y} \u2014 ${h}:${min}`;
+}
+
+function formatTokenCount(n: number): string {
+	if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+	if (n >= 1_000) return Math.floor(n / 1_000) + "K";
+	return String(n);
+}
+
 class ModelInfoEditor extends CustomEditor {
 	private uiTheme: Theme;
 	private modelId = "unknown";
@@ -18,9 +33,12 @@ class ModelInfoEditor extends CustomEditor {
 	private sessionCost = 0;
 	private lastInput = 0;
 	private lastOutput = 0;
+	private contextUsage = 0;
+	private contextWindow = 0;
 	private borderKey = "border";
 	private bashDisplay = "";
 	private bashMode: string | null = null;
+	private lastExecTime = "";
 
 	constructor(
 		tui: TUI,
@@ -45,10 +63,21 @@ class ModelInfoEditor extends CustomEditor {
 		this.invalidate();
 	}
 
+	setLastExecTime(time: string) {
+		this.lastExecTime = time;
+		this.invalidate();
+	}
+
 	setModelInfo(id: string, provider: string, thinking: string) {
 		this.modelId = id;
 		this.provider = provider;
 		this.thinking = thinking;
+		this.invalidate();
+	}
+
+	setContextInfo(usage: number, window?: number) {
+		this.contextUsage = usage;
+		if (window !== undefined) this.contextWindow = window;
 		this.invalidate();
 	}
 
@@ -78,22 +107,33 @@ class ModelInfoEditor extends CustomEditor {
 			return t + " ".repeat(Math.max(0, innerW - visibleWidth(t)));
 		};
 
-		const bashText = this.bashDisplay
-			? " " + (this.bashMode === "hidden"
-				? dimFg(this.bashDisplay)
-				: borderFg(this.bashDisplay))
-			: "";
-
 		const modelInfo = [
 			borderFg(this.modelId),
 			this.provider ? " " + this.uiTheme.fg("muted", this.provider) : "",
 			" " + this.uiTheme.fg("dim", this.thinking),
-			bashText,
 		].join("");
 
-		const tokenInfo = dimFg(`\u2191 ${this.lastInput}/${this.lastOutput} \u2193 ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
+		const ctxStr = this.contextWindow > 0
+			? `${this.uiTheme.fg("muted", `${Math.round(this.contextUsage / this.contextWindow * 100)}% (${formatTokenCount(this.contextUsage)}/${formatTokenCount(this.contextWindow)})`)} `
+			: "";
+		const tokenInfo = dimFg(`${ctxStr}\u2191 ${formatTokenCount(this.lastInput)}/${formatTokenCount(this.lastOutput)} \u2193 ${formatTokenCount(this.sessionTokens)} $${this.sessionCost.toFixed(2)}`);
 
 		const topBorder = mutedFg("\u2500".repeat(width));
+
+		const execTime = this.lastExecTime
+			? mutedFg(this.lastExecTime)
+			: "";
+		const execW = visibleWidth(execTime);
+
+		const bashIndicator = this.bashDisplay
+			? (this.bashMode === "hidden"
+				? dimFg(this.bashDisplay)
+				: borderFg(this.bashDisplay))
+			: "";
+		const bashW = visibleWidth(bashIndicator);
+
+		const fillSpaces = Math.max(0, innerW - execW - (bashW > 0 ? bashW + 1 : 0));
+		const bashLine = rail + execTime + " ".repeat(fillSpaces) + (bashW > 0 ? " " + bashIndicator : "");
 		const bottomBorder = mutedFg("\u2500".repeat(width));
 
 		const stripped = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, "");
@@ -119,7 +159,7 @@ class ModelInfoEditor extends CustomEditor {
 		const gap = Math.max(1, innerW - leftW - rightW);
 		const metaLine = rail + leftPart + " ".repeat(gap) + rightPart;
 
-		return [topBorder, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
+		return [topBorder, bashLine, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
 	}
 }
 
@@ -182,7 +222,11 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			const editor = new ModelInfoEditor(tui, { ...baseTheme, selectList }, keybindings, uiTheme);
 			editorRef = editor;
 			editor.setModelInfo(modelId, provider, currentThinking);
+			const ctxW = ctx.model?.contextWindow || 0;
+			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+			editor.setContextInfo(ctxU, ctxW);
 			editor.setTokenInfo(0, 0, sessionTokens, sessionCost);
+			editor.setLastExecTime(formatDateTime(new Date()));
 			return editor;
 		});
 
@@ -236,14 +280,19 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			event.model.provider || "",
 			currentThinking,
 		);
+		const ctxW = event.model.contextWindow || 0;
+		const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+		editorRef?.setContextInfo(ctxU, ctxW);
 	});
 
-	pi.on("message_end", async (event, _ctx) => {
+	pi.on("message_end", async (event, ctx) => {
 		if (event.message.role === "assistant" && event.message.usage) {
 			const u = event.message.usage;
 			sessionTokens += u.totalTokens;
 			sessionCost += u.cost.total;
 			editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
+			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
+			editorRef?.setContextInfo(ctxU);
 		}
 		// Força refresh da branch após resposta do modelo (pega git checkout
 		// executado via bash tool, que não passa por user_bash nem !!)
