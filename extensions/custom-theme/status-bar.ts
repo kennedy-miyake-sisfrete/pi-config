@@ -78,22 +78,23 @@ class ModelInfoEditor extends CustomEditor {
 			return t + " ".repeat(Math.max(0, innerW - visibleWidth(t)));
 		};
 
-		const bashText = this.bashDisplay
-			? " " + (this.bashMode === "hidden"
-				? dimFg(this.bashDisplay)
-				: borderFg(this.bashDisplay))
-			: "";
-
 		const modelInfo = [
 			borderFg(this.modelId),
 			this.provider ? " " + this.uiTheme.fg("muted", this.provider) : "",
 			" " + this.uiTheme.fg("dim", this.thinking),
-			bashText,
 		].join("");
 
 		const tokenInfo = dimFg(`\u2191 ${this.lastInput}/${this.lastOutput} \u2193 ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
 
-		const topBorder = mutedFg("\u2500".repeat(width));
+		const bashIndicator = this.bashDisplay
+			? (this.bashMode === "hidden"
+				? dimFg(this.bashDisplay)
+				: borderFg(this.bashDisplay))
+			: "";
+		const bashW = visibleWidth(bashIndicator);
+		const topBorder = bashW > 0
+			? mutedFg("\u2500".repeat(Math.max(0, width - bashW - 1))) + " " + bashIndicator
+			: mutedFg("\u2500".repeat(width));
 		const bottomBorder = mutedFg("\u2500".repeat(width));
 
 		const stripped = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, "");
