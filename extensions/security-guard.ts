@@ -458,6 +458,43 @@ async function handleBashCommand(
       return undefined;
     }
   }
+
+  // Check for reading sensitive files via bash commands
+  const FILE_READ_CMDS = /\b(cat|head|tail|less|more|bat)\b/i;
+  if (FILE_READ_CMDS.test(command)) {
+    for (const entry of SENSITIVE_PATH_PATTERNS) {
+      const src = entry.pattern.source;
+      const relativeSrc = src.startsWith('\\/')
+        ? '(?:^|[\\/\\s"\'\\\\])' + src.slice(2).replace(/\$$/, '(?:\\s|$)')
+        : src.replace(/\$$/, '(?:\\s|$)');
+      const relativePattern = new RegExp(relativeSrc, entry.pattern.flags);
+
+      if (relativePattern.test(command)) {
+        await logEvent("bash", `${entry.reason}: ${command}`, true, ctx);
+
+        if (config.mode === "strict") {
+          return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${command}` };
+        }
+        if (config.mode === "audit-only" || config.mode === "permissive") {
+          return undefined;
+        }
+        if (!ctx.hasUI) {
+          return { block: true, reason: `[BLOQUEADO] ${entry.severity}: ${command} (modo não-interativo)` };
+        }
+
+        const choice = await ctx.ui.select(
+          `\u26A0\uFE0F Leitura de arquivo sensível (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nComando: ${command}`,
+          ["Permitir esta vez", "Bloquear"]
+        );
+        if (choice === "Bloquear") {
+          return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
+        }
+        await logEvent("bash", `${entry.reason}: ${command} (permitido pelo usuário)`, false, ctx);
+        return undefined;
+      }
+    }
+  }
+
   return undefined;
 }
 
