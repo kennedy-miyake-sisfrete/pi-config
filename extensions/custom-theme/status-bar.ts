@@ -9,6 +9,12 @@ import type { EditorTheme, KeybindingsManager, SelectListTheme, TUI } from "@ear
 import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
 import path from "node:path";
 
+function formatTokenCount(n: number): string {
+	if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+	if (n >= 1_000) return Math.floor(n / 1_000) + "K";
+	return String(n);
+}
+
 class ModelInfoEditor extends CustomEditor {
 	private uiTheme: Theme;
 	private modelId = "unknown";
@@ -91,7 +97,7 @@ class ModelInfoEditor extends CustomEditor {
 			bashText,
 		].join("");
 
-		const tokenInfo = dimFg(`\u2191 ${this.lastInput}/${this.lastOutput} \u2193 ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
+		const tokenInfo = dimFg(`\u2191 ${formatTokenCount(this.lastInput)}/${formatTokenCount(this.lastOutput)} \u2193 ${formatTokenCount(this.sessionTokens)} $${this.sessionCost.toFixed(2)}`);
 
 		const topBorder = mutedFg("\u2500".repeat(width));
 		const bottomBorder = mutedFg("\u2500".repeat(width));
