@@ -86,15 +86,17 @@ class ModelInfoEditor extends CustomEditor {
 
 		const tokenInfo = dimFg(`\u2191 ${this.lastInput}/${this.lastOutput} \u2193 ${this.sessionTokens} $${this.sessionCost.toFixed(4)}`);
 
+		const topBorder = mutedFg("\u2500".repeat(width));
+
 		const bashIndicator = this.bashDisplay
 			? (this.bashMode === "hidden"
 				? dimFg(this.bashDisplay)
 				: borderFg(this.bashDisplay))
 			: "";
 		const bashW = visibleWidth(bashIndicator);
-		const topBorder = bashW > 0
-			? mutedFg("\u2500".repeat(Math.max(0, width - bashW - 1))) + " " + bashIndicator
-			: mutedFg("\u2500".repeat(width));
+		const bashLine = bashW > 0
+			? rail + " ".repeat(Math.max(0, innerW - bashW - 1)) + " " + bashIndicator
+			: rail + fill("");
 		const bottomBorder = mutedFg("\u2500".repeat(width));
 
 		const stripped = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, "");
@@ -120,7 +122,7 @@ class ModelInfoEditor extends CustomEditor {
 		const gap = Math.max(1, innerW - leftW - rightW);
 		const metaLine = rail + leftPart + " ".repeat(gap) + rightPart;
 
-		return [topBorder, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
+		return [topBorder, bashLine, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
 	}
 }
 
