@@ -9,6 +9,15 @@ import type { EditorTheme, KeybindingsManager, SelectListTheme, TUI } from "@ear
 import { visibleWidth, truncateToWidth } from "@earendil-works/pi-tui";
 import path from "node:path";
 
+function formatDateTime(date: Date): string {
+	const d = String(date.getDate()).padStart(2, "0");
+	const m = String(date.getMonth() + 1).padStart(2, "0");
+	const y = date.getFullYear();
+	const h = String(date.getHours()).padStart(2, "0");
+	const min = String(date.getMinutes()).padStart(2, "0");
+	return `${d}/${m}/${y} \u2014 ${h}:${min}`;
+}
+
 class ModelInfoEditor extends CustomEditor {
 	private uiTheme: Theme;
 	private modelId = "unknown";
@@ -21,6 +30,7 @@ class ModelInfoEditor extends CustomEditor {
 	private borderKey = "border";
 	private bashDisplay = "";
 	private bashMode: string | null = null;
+	private lastExecTime = "";
 
 	constructor(
 		tui: TUI,
@@ -42,6 +52,11 @@ class ModelInfoEditor extends CustomEditor {
 	setBashDisplay(text: string | null, mode: string | null): void {
 		this.bashDisplay = text ?? "";
 		this.bashMode = mode;
+		this.invalidate();
+	}
+
+	setLastExecTime(time: string) {
+		this.lastExecTime = time;
 		this.invalidate();
 	}
 
@@ -88,15 +103,20 @@ class ModelInfoEditor extends CustomEditor {
 
 		const topBorder = mutedFg("\u2500".repeat(width));
 
+		const execTime = this.lastExecTime
+			? mutedFg(this.lastExecTime)
+			: "";
+		const execW = visibleWidth(execTime);
+
 		const bashIndicator = this.bashDisplay
 			? (this.bashMode === "hidden"
 				? dimFg(this.bashDisplay)
 				: borderFg(this.bashDisplay))
 			: "";
 		const bashW = visibleWidth(bashIndicator);
-		const bashLine = bashW > 0
-			? rail + " ".repeat(Math.max(0, innerW - bashW - 1)) + " " + bashIndicator
-			: rail + fill("");
+
+		const fillSpaces = Math.max(0, innerW - execW - (bashW > 0 ? bashW + 1 : 0));
+		const bashLine = rail + execTime + " ".repeat(fillSpaces) + (bashW > 0 ? " " + bashIndicator : "");
 		const bottomBorder = mutedFg("\u2500".repeat(width));
 
 		const stripped = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, "");
@@ -186,6 +206,7 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			editorRef = editor;
 			editor.setModelInfo(modelId, provider, currentThinking);
 			editor.setTokenInfo(0, 0, sessionTokens, sessionCost);
+			editor.setLastExecTime(formatDateTime(new Date()));
 			return editor;
 		});
 
@@ -242,16 +263,17 @@ export function registerStatusBar(pi: ExtensionAPI) {
 	});
 
 	pi.on("message_end", async (event, _ctx) => {
-		if (event.message.role === "assistant" && event.message.usage) {
-			const u = event.message.usage;
-			sessionTokens += u.totalTokens;
-			sessionCost += u.cost.total;
-			editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
-		}
-		// Força refresh da branch após resposta do modelo (pega git checkout
-		// executado via bash tool, que não passa por user_bash nem !!)
-		// refreshGitBranchAsync é noop se branch não mudou
 		if (event.message.role === "assistant") {
+			const u = event.message.usage;
+			if (u) {
+				sessionTokens += u.totalTokens;
+				sessionCost += u.cost.total;
+				editorRef?.setTokenInfo(u.input, u.output, sessionTokens, sessionCost);
+			}
+			editorRef?.setLastExecTime(formatDateTime(new Date()));
+			// Força refresh da branch após resposta do modelo (pega git checkout
+			// executado via bash tool, que não passa por user_bash nem !!)
+			// refreshGitBranchAsync é noop se branch não mudou
 			setTimeout(() => footerDataRef?.refreshGitBranchAsync?.(), 100);
 		}
 	});
