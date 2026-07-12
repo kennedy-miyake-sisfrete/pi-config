@@ -1,6 +1,6 @@
 ---
 name: web-search
-description: Search the web via DuckDuckGo and fetch full page content. Use when you need current information beyond your training data, real-time facts, documentation lookups, or any web research. Always prefers web_search for finding URLs and web_fetch for content extraction.
+description: Search the web via SearXNG (local), Tavily, Exa, or Serper.dev APIs and fetch full page content. Use when you need current information beyond your training data, real-time facts, documentation lookups, or any web research. Always prefers web_search for finding URLs and web_fetch for content extraction.
 ---
 
 # Web Search
@@ -28,12 +28,26 @@ Starts a research session. Call this **first** with a strategic goal.
 
 ### `web_search` — Find URLs
 
-Searches DuckDuckGo and returns up to 10 results with title, URL, and snippet.
+Searches via engine cascade: **SearXNG (local)** → Tavily → Exa → Serper.dev.
+Returns up to 10 results with title and URL. Each engine tried in order; if one fails, next is attempted.
 
 - **Parameter:** `query` (string) — the search terms
-- **Endpoint:** POSTs to `lite.duckduckgo.com/lite/` (falls back to `html.duckduckgo.com/html`)
-- **Limits:** You may call up to **10 times** per research session
-- **Rotates:** User-Agent per request to avoid blocking
+- **Cascade:** SearXNG (self-hosted, free, no API key) → Tavily → Exa → Serper.dev
+- **Config:** API keys set via `/web_search config <provider> <key>` or env vars (`SERPER_API_KEY`, `EXA_API_KEY`, `TAVILY_API_KEY`). SearXNG needs no key.
+- **No hard call limit** — use strategically, avoid excessive redundant queries
+
+#### SearXNG (local, Docker)
+
+SearXNG is a self-hosted meta search engine that aggregates multiple sources. Runs locally via Docker:
+
+```bash
+cd /caminho/do/pi-web-search
+docker compose up -d      # sobe na porta 8080
+docker compose down       # derruba quando quiser
+```
+
+Configuração opcional via env var `SEARXNG_URL` ou `/web_search config searxng <url>`.
+Default: `http://localhost:8080`.
 
 ### `web_fetch` — Extract Content
 
@@ -90,8 +104,8 @@ For simple, focused lookups where a single search suffices:
 - **Diversify queries.** Use the suggestions from `web_agent` to cover different angles.
 - **Fetch before citing.** Snippets can be misleading. Always call `web_fetch` on important URLs.
 - **Report errors transparently.** If some URLs failed, say so: "Found 10 results but only 8 loaded."
-- **Respect the 10-call limit on `web_search`.** Use each call strategically.
 - **Use `read` to access saved files.** The output directory path is shown in `web_fetch`'s response.
+- **SearXNG local é preferencial** — sem taxa, sem API key. Só precisa do Docker rodando.
 
 ## Example (Multi-Branch)
 
@@ -107,13 +121,13 @@ Agent:
       - Start by calling web_search with targeted terms
 
 2. web_search("best CLI productivity tools fullstack developers 2025")
-   → 10 results
+   → 10 results (SearXNG)
 
 3. web_search("modern Unix tool replacements ls cat grep find")
-   → 10 results
+   → 10 results (SearXNG)
 
 4. web_search("developer CLI utilities git helpers API testing")
-   → 8 results
+   → 8 results (SearXNG)
 
 5. web_agent({})
    → ### Searches (3)
@@ -151,7 +165,7 @@ User: What's the current Python version?
 
 Agent:
 1. web_search("current Python version 2025")
-   → 10 results
+   → 10 results (SearXNG)
 
 2. web_fetch(["https://python.org/downloads/"])
    → Fetched 1 URL → /tmp/page_20260625_x1y2z3/
