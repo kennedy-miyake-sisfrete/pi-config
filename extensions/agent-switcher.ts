@@ -232,6 +232,13 @@ async function readCurrentAGENTS(): Promise<string | null> {
 export default function agentSwitcherExtension(pi: ExtensionAPI): void {
 	let currentAgent: AgentType = "coder";
 
+	// ── notify other extensions ────────────────────────────────
+	function broadcastAgentType(type: AgentType): void {
+		try {
+			pi.events?.emit("custom:agent-switch", { type });
+		} catch { /* other extensions may not be loaded */ }
+	}
+
 	// ── persistence ──────────────────────────────────────────────
 	function persistAgent(): void {
 		pi.appendEntry("agent-switcher", { agent: currentAgent });
@@ -245,7 +252,7 @@ export default function agentSwitcherExtension(pi: ExtensionAPI): void {
 		await writeFile(AGENTS_PATH, AGENTS_MD[type]);
 		updateIndicator(ctx);
 		persistAgent();
-		ctx.ui.notify(`🤖 Agent switched to ${type}`, "info");
+		broadcastAgentType(type);
 	}
 
 	// ── indicator ────────────────────────────────────────────────

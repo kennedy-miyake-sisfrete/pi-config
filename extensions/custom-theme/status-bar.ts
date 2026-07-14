@@ -29,6 +29,7 @@ class ModelInfoEditor extends CustomEditor {
 	private modelId = "unknown";
 	private provider = "";
 	private thinking = "off";
+	private agentType = "coder";
 	private sessionTokens = 0;
 	private sessionCost = 0;
 	private lastInput = 0;
@@ -65,6 +66,11 @@ class ModelInfoEditor extends CustomEditor {
 
 	setLastExecTime(time: string) {
 		this.lastExecTime = time;
+		this.invalidate();
+	}
+
+	setAgentType(type: string) {
+		this.agentType = type;
 		this.invalidate();
 	}
 
@@ -107,10 +113,20 @@ class ModelInfoEditor extends CustomEditor {
 			return t + " ".repeat(Math.max(0, innerW - visibleWidth(t)));
 		};
 
+		const agentBadge = (() => {
+			const label = " " + this.agentType.toUpperCase() + " ";
+			switch (this.agentType) {
+				case "writer": return this.uiTheme.bg("toolSuccessBg", this.uiTheme.fg("success", label));
+				case "planner": return this.uiTheme.bg("selectedBg", this.uiTheme.fg("warning", label));
+				default: return this.uiTheme.bg("customMessageBg", this.uiTheme.fg("accent", label));
+			}
+		})();
+
 		const modelInfo = [
 			borderFg(this.modelId),
 			this.provider ? " " + this.uiTheme.fg("muted", this.provider) : "",
 			" " + this.uiTheme.fg("dim", this.thinking),
+			" " + agentBadge,
 		].join("");
 
 		const ctxStr = this.contextWindow > 0
@@ -187,6 +203,26 @@ export function registerStatusBar(pi: ExtensionAPI) {
 		}
 	});
 
+	// ── escuta agente-switcher ─────────────────────────────────
+	pi.events?.on("custom:agent-switch", ({ type }: { type: string }) => {
+		if (["coder", "writer", "planner"].includes(type)) {
+			editorRef?.setAgentType(type);
+		}
+	});
+
+	// ── helper: read agent type from session ──
+	function readAgentTypeFromSession(ctx: any): string {
+		try {
+			const entries = ctx.sessionManager?.getEntries() ?? [];
+			const stateEntry = entries
+				.filter((e: { type: string; customType?: string }) => e.type === "custom" && e.customType === "agent-switcher")
+				.pop() as { data?: { agent?: string } } | undefined;
+			const type = stateEntry?.data?.agent;
+			if (type && ["coder", "writer", "planner"].includes(type)) return type;
+		} catch {}
+		return "coder";
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		const folderName = path.basename(ctx.cwd);
 		currentThinking = pi.getThinkingLevel() || "off";
@@ -203,6 +239,7 @@ export function registerStatusBar(pi: ExtensionAPI) {
 
 		const modelId = ctx.model?.id || "unknown";
 		const provider = ctx.model?.provider || "";
+		const currentAgent = readAgentTypeFromSession(ctx);
 
 		ctx.ui.setEditorComponent((tui: TUI, baseTheme: EditorTheme, keybindings: KeybindingsManager) => {
 			const uiTheme = ctx.ui.theme;
@@ -222,6 +259,7 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			const editor = new ModelInfoEditor(tui, { ...baseTheme, selectList }, keybindings, uiTheme);
 			editorRef = editor;
 			editor.setModelInfo(modelId, provider, currentThinking);
+			editor.setAgentType(currentAgent);
 			const ctxW = ctx.model?.contextWindow || 0;
 			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
 			editor.setContextInfo(ctxU, ctxW);
@@ -294,11 +332,16 @@ export function registerStatusBar(pi: ExtensionAPI) {
 			const ctxU = ctx.getContextUsage?.()?.tokens || 0;
 			editorRef?.setContextInfo(ctxU);
 		}
-		// Força refresh da branch após resposta do modelo (pega git checkout
-		// executado via bash tool, que não passa por user_bash nem !!)
-		// refreshGitBranchAsync é noop se branch não mudou
+		// Refresh agent type badge (agent-switcher persists via appendEntry)
 		if (event.message.role === "assistant") {
+			editorRef?.setAgentType(readAgentTypeFromSession(ctx));
+			// Força refresh da branch após resposta do modelo
 			setTimeout(() => footerDataRef?.refreshGitBranchAsync?.(), 100);
 		}
+	});
+
+	// Refresh agent type at start of each turn (fallback)
+	pi.on("turn_start", async (_event, ctx) => {
+		editorRef?.setAgentType(readAgentTypeFromSession(ctx));
 	});
 }
