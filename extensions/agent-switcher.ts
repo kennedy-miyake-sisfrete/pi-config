@@ -301,6 +301,20 @@ export default function agentSwitcherExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	// ── restrict writer/planner to .md only ────────────────────
+	pi.on("tool_call", async (event, ctx) => {
+		if (currentAgent === "coder") return;
+		if (event.toolName !== "write" && event.toolName !== "edit") return;
+
+		const path = (event.input as any)?.path ?? "";
+		if (!path.endsWith(".md")) {
+			return {
+				block: true,
+				reason: `${currentAgent.toUpperCase()} mode: can only write .md files. Use \`/agent coder\` to enable full file access.`,
+			};
+		}
+	});
+
 	// ── events ───────────────────────────────────────────────────
 	pi.on("session_start", async (_event, ctx) => {
 		// Restore persisted agent type
