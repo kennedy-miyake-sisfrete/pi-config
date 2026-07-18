@@ -457,39 +457,36 @@ async function handleBashCommand(
     }
   }
 
-  // Check for reading sensitive files via bash commands
-  const FILE_READ_CMDS = /\b(cat|head|tail|less|more|bat)\b/i;
-  if (FILE_READ_CMDS.test(command)) {
-    for (const entry of SENSITIVE_PATH_PATTERNS) {
-      const src = entry.pattern.source;
-      const relativeSrc = src.startsWith('\\/')
-        ? '(?:^|[\\/\\s"\'\\\\])' + src.slice(2).replace(/\$$/, '(?:\\s|$)')
-        : src.replace(/\$$/, '(?:\\s|$)');
-      const relativePattern = new RegExp(relativeSrc, entry.pattern.flags);
+  // Check for sensitive paths in any bash command (write, read, move, symlink, etc.)
+  for (const entry of SENSITIVE_PATH_PATTERNS) {
+    const src = entry.pattern.source;
+    const relativeSrc = src.startsWith('\\/')
+      ? '(?:^|[\\/\\s"\'\\\\<])' + src.slice(2).replace(/\$$/, '(?:[\\s\\)]|$)')
+      : src.replace(/\$$/, '(?:[\\s\\)]|$)');
+    const relativePattern = new RegExp(relativeSrc, entry.pattern.flags);
 
-      if (relativePattern.test(command)) {
-        await logEvent("bash", `${entry.reason}: ${command}`, true, ctx);
+    if (relativePattern.test(command)) {
+      await logEvent("bash", `${entry.reason}: ${command}`, true, ctx);
 
-        if (config.mode === "strict") {
-          return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${command}` };
-        }
-        if (config.mode === "audit-only" || config.mode === "permissive") {
-          return undefined;
-        }
-        if (!ctx.hasUI) {
-          return { block: true, reason: `[BLOQUEADO] ${entry.severity}: ${command} (modo não-interativo)` };
-        }
-
-        const choice = await ctx.ui.select(
-          `\u26A0\uFE0F Leitura de arquivo sensível (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nComando: ${command}`,
-          ["Permitir esta vez", "Bloquear"]
-        );
-        if (choice === "Bloquear") {
-          return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
-        }
-        await logEvent("bash", `${entry.reason}: ${command} (permitido pelo usuário)`, false, ctx);
+      if (config.mode === "strict") {
+        return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${command}` };
+      }
+      if (config.mode === "audit-only" || config.mode === "permissive") {
         return undefined;
       }
+      if (!ctx.hasUI) {
+        return { block: true, reason: `[BLOQUEADO] ${entry.severity}: ${command} (modo não-interativo)` };
+      }
+
+      const choice = await ctx.ui.select(
+        `\u26A0\uFE0F Operação em arquivo sensível (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nComando: ${command}`,
+        ["Permitir esta vez", "Bloquear"]
+      );
+      if (choice === "Bloquear") {
+        return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
+      }
+      await logEvent("bash", `${entry.reason}: ${command} (permitido pelo usuário)`, false, ctx);
+      return undefined;
     }
   }
 
@@ -568,6 +565,45 @@ export default function (pi: ExtensionAPI) {
       const path = input.path as string;
       if (!path) return undefined;
       return handlePathAccess(toolName, path, ctx, config);
+    }
+
+    // Catch-all: check any tool string/array parameters for sensitive paths
+    // Covers codegraph_*, web_fetch, mcp, and other tools not explicitly handled
+    const stringValues: string[] = [];
+    for (const value of Object.values(input)) {
+      if (typeof value === "string") {
+        stringValues.push(value);
+      } else if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === "string") stringValues.push(item);
+        }
+      }
+    }
+    for (const str of stringValues) {
+      if (str.length === 0) continue;
+      for (const entry of SENSITIVE_PATH_PATTERNS) {
+        if (entry.pattern.test(str)) {
+          await logEvent(toolName, `${entry.reason}: ${str}`, true, ctx);
+          if (config.mode === "strict") {
+            return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${str}` };
+          }
+          if (config.mode === "audit-only" || config.mode === "permissive") {
+            return undefined;
+          }
+          if (!ctx.hasUI) {
+            return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${str} (modo não-interativo)` };
+          }
+          const choice = await ctx.ui.select(
+            `\u26A0\uFE0F Parâmetro sensível em ${toolName} (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nValor: ${str}`,
+            ["Permitir esta vez", "Bloquear"]
+          );
+          if (choice === "Bloquear") {
+            return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
+          }
+          await logEvent(toolName, `${entry.reason}: ${str} (permitido pelo usuário)`, false, ctx);
+          return undefined;
+        }
+      }
     }
 
     return undefined;
