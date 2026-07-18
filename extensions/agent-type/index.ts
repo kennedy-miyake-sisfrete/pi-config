@@ -29,6 +29,12 @@ export interface AgentConfig {
 	/** null = mantém tools padrão do pi. string[] = restringe a este conjunto. */
 	activeTools: string[] | null;
 	agentsMd: string;
+	/**
+	 * Opcional: restringe tools de escrita a extensões de arquivo específicas.
+	 * Chave = nome da tool, valor = extensões permitidas (ex.: [".md"]).
+	 * Tools não listadas aqui operam sem restrição.
+	 */
+	allowedExtensions?: Record<string, string[]>;
 }
 
 // ── Configs dos 3 tipos ─────────────────────────────────────────────────────
@@ -79,6 +85,40 @@ function applyTools(pi: ExtensionAPI, config: AgentConfig): void {
 
 function injectAgentsMd(systemPrompt: string, config: AgentConfig): string {
 	return `${systemPrompt}\n\n${config.agentsMd}`;
+}
+
+function getBlockedReason(config: AgentConfig, toolName: string, args: Record<string, unknown>): string | null {
+	const restrictions = config.allowedExtensions;
+	if (!restrictions) return null;
+
+	const allowedExts = restrictions[toolName];
+	if (!allowedExts) return null; // tool not restricted
+
+	// Check all file path arguments
+	const filePaths: string[] = [];
+	if (typeof args.path === "string") filePaths.push(args.path);
+	if (typeof args.filePath === "string") filePaths.push(args.filePath);
+	if (typeof args.file === "string") filePaths.push(args.file);
+
+	// write tool sends content + path differently, check all string args ending in extension
+	for (const [key, val] of Object.entries(args)) {
+		if (typeof val === "string" && (val.includes("/") || val.includes("."))) {
+			const ext = val.slice(val.lastIndexOf("."));
+			if (ext.includes("/") || ext.includes(" ")) continue;
+			if (ext.length >= 2 && ext.length <= 6 && !ext.includes(" ")) {
+				filePaths.push(val);
+			}
+		}
+	}
+
+	for (const fp of filePaths) {
+		const ext = fp.slice(fp.lastIndexOf("."));
+		if (!allowedExts.includes(ext)) {
+			return `\"${toolName}\" restrito a arquivos ${allowedExts.join(", ")} no modo ${config.label}. Alvo: ${fp}`;
+		}
+	}
+
+	return null;
 }
 
 // ── Comando /agent ──────────────────────────────────────────────────────────
@@ -137,6 +177,17 @@ function switchTo(type: AgentConfig["type"], pi: ExtensionAPI, ctx?: ExtensionCo
 // ── Extension entry ─────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
+	// ── Block restricted file operations ─────────────────────────────
+	pi.on("tool_call", async (event, ctx) => {
+		const config = agents[currentType];
+		if (!config) return;
+
+		const reason = getBlockedReason(config, event.toolName, event.input as Record<string, unknown>);
+		if (reason) {
+			return { block: true, reason };
+		}
+	});
+
 	// ── Register command ───────────────────────────────────────────────
 	pi.registerCommand("agent", {
 		description: "Alternar tipo de agente: coder, planner, writer",

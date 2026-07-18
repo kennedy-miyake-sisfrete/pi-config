@@ -14,6 +14,10 @@ export const agentConfig: AgentConfig = {
 	type: "writer",
 	label: "WRITER",
 	activeTools: null, // null = mantém tools padrão (todas disponíveis)
+	allowedExtensions: {
+		edit: [".md"],
+		write: [".md"],
+	},
 	agentsMd: `# WRITER.md
 
 You are a **text creation and review specialist**. Your role is to craft, analyze, and refine articles and written content with precision and clarity.
