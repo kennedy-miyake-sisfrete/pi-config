@@ -69,13 +69,13 @@ const SENSITIVE_PATTERNS: { pattern: RegExp; severity: string; reason: string }[
   { pattern: /\bpkexec\s+(rm|chmod|chown|mkfs|dd)/i, severity: "critical", reason: "Execução privilegiada de comando perigoso" },
 
   // =================== CONTAINER / ORCHESTRATION ===================
-  { pattern: /\bdocker\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|diff|export|import|load|save|tag|inspect|logs|port|stats|top|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|plugin|node|service|stack|swarm|config|secret|trust|search|buildx|compose|scan|context|manifest|app|sbom|deploy|init|extension)\b/i, severity: "critical", reason: "Execução dentro de container Docker bloqueada" },
-  { pattern: /\bpodman\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|diff|export|import|load|save|tag|inspect|logs|port|stats|top|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|pod|kube|play|generate|machine|farm|secret|manifest)\b/i, severity: "critical", reason: "Execução dentro de container Podman bloqueada" },
-  { pattern: /\b(nerdctl|ctr)\s+(run|exec|create|start|attach|cp|logs|kill|stop|rm|images|containers|namespaces)\b/i, severity: "critical", reason: "Execução dentro de container containerd bloqueada" },
+  { pattern: /\bdocker\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|export|import|load|save|tag|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|plugin|node|service|stack|swarm|config|secret|trust|search|buildx|compose|scan|context|manifest|app|sbom|deploy|init|extension)\b/i, severity: "critical", reason: "Execução dentro de container Docker bloqueada" },
+  { pattern: /\bpodman\s+(run|exec|create|start|build|commit|push|pull|login|attach|cp|export|import|load|save|tag|wait|kill|stop|restart|pause|unpause|rm|prune|system|volume|network|image|container|pod|kube|play|generate|machine|farm|secret|manifest)\b/i, severity: "critical", reason: "Execução dentro de container Podman bloqueada" },
+  { pattern: /\b(nerdctl|ctr)\s+(run|exec|create|start|attach|cp|kill|stop|rm|images|containers|namespaces)\b/i, severity: "critical", reason: "Execução dentro de container containerd bloqueada" },
   { pattern: /\bkubectl\s+(exec|run|attach|cp|port-forward|proxy)\b/i, severity: "critical", reason: "Execução dentro de pod Kubernetes bloqueada" },
-  { pattern: /\bkubectl\s+(apply|create|delete|patch|replace|edit|scale|rollout|expose|debug|auth|config|get|describe|label|annotate|taint|drain|cordon|uncordon|top)\b/i, severity: "high", reason: "Gerenciamento de cluster Kubernetes" },
-  { pattern: /\bhelm\s+(install|upgrade|rollback|uninstall|template|pull|push|repo|search|list|status|history|get|test|verify|package|lint|dependency)\b/i, severity: "high", reason: "Gerenciamento de releases Helm" },
-  { pattern: /\b(docker-compose|docker compose)\s+(up|down|run|exec|build|push|pull|start|stop|restart|pause|unpause|kill|rm|ps|logs|port|top|config|create|scale)\b/i, severity: "critical", reason: "Execução via Docker Compose bloqueada" },
+  { pattern: /\bkubectl\s+(apply|create|delete|patch|replace|edit|scale|rollout|expose|debug|label|annotate|taint|drain|cordon|uncordon)\b/i, severity: "high", reason: "Gerenciamento de cluster Kubernetes" },
+  { pattern: /\bhelm\s+(install|upgrade|rollback|uninstall|template|pull|push|repo|test|verify|package|lint|dependency)\b/i, severity: "high", reason: "Gerenciamento de releases Helm" },
+  { pattern: /\b(docker-compose|docker compose)\s+(up|down|run|exec|build|push|pull|start|stop|restart|pause|unpause|kill|rm|config|create|scale)\b/i, severity: "critical", reason: "Execução via Docker Compose bloqueada" },
   { pattern: /\b(buildah|skopeo)\b/i, severity: "medium", reason: "Build/push de imagens container" },
   { pattern: /\blxc\s+(start|stop|restart|exec|attach|create|destroy|launch|copy|move|publish|snapshot|console|shell)\b/i, severity: "high", reason: "Execução dentro de container LXC bloqueada" },
   { pattern: /\bsystemd-nspawn\b|\bmachinectl\b/i, severity: "high", reason: "Execução via systemd-nspawn bloqueada" },
@@ -408,14 +408,12 @@ async function logEvent(
   blocked: boolean,
   ctx: any
 ) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    tool: toolName,
-    detail,
-    blocked,
-    cwd: process.cwd(),
-  };
-  console.error("[SECURITY_GUARD]", JSON.stringify(entry));
+  if (ctx?.hasUI) {
+    ctx.ui.notify(
+      `[SEGURANÇA] ${detail}`,
+      blocked ? "error" : "info"
+    );
+  }
 }
 
 async function handleBashCommand(
@@ -459,39 +457,36 @@ async function handleBashCommand(
     }
   }
 
-  // Check for reading sensitive files via bash commands
-  const FILE_READ_CMDS = /\b(cat|head|tail|less|more|bat)\b/i;
-  if (FILE_READ_CMDS.test(command)) {
-    for (const entry of SENSITIVE_PATH_PATTERNS) {
-      const src = entry.pattern.source;
-      const relativeSrc = src.startsWith('\\/')
-        ? '(?:^|[\\/\\s"\'\\\\])' + src.slice(2).replace(/\$$/, '(?:\\s|$)')
-        : src.replace(/\$$/, '(?:\\s|$)');
-      const relativePattern = new RegExp(relativeSrc, entry.pattern.flags);
+  // Check for sensitive paths in any bash command (write, read, move, symlink, etc.)
+  for (const entry of SENSITIVE_PATH_PATTERNS) {
+    const src = entry.pattern.source;
+    const relativeSrc = src.startsWith('\\/')
+      ? '(?:^|[\\/\\s"\'\\\\<])' + src.slice(2).replace(/\$$/, '(?:[\\s\\)]|$)')
+      : src.replace(/\$$/, '(?:[\\s\\)]|$)');
+    const relativePattern = new RegExp(relativeSrc, entry.pattern.flags);
 
-      if (relativePattern.test(command)) {
-        await logEvent("bash", `${entry.reason}: ${command}`, true, ctx);
+    if (relativePattern.test(command)) {
+      await logEvent("bash", `${entry.reason}: ${command}`, true, ctx);
 
-        if (config.mode === "strict") {
-          return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${command}` };
-        }
-        if (config.mode === "audit-only" || config.mode === "permissive") {
-          return undefined;
-        }
-        if (!ctx.hasUI) {
-          return { block: true, reason: `[BLOQUEADO] ${entry.severity}: ${command} (modo não-interativo)` };
-        }
-
-        const choice = await ctx.ui.select(
-          `\u26A0\uFE0F Leitura de arquivo sensível (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nComando: ${command}`,
-          ["Permitir esta vez", "Bloquear"]
-        );
-        if (choice === "Bloquear") {
-          return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
-        }
-        await logEvent("bash", `${entry.reason}: ${command} (permitido pelo usuário)`, false, ctx);
+      if (config.mode === "strict") {
+        return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${command}` };
+      }
+      if (config.mode === "audit-only" || config.mode === "permissive") {
         return undefined;
       }
+      if (!ctx.hasUI) {
+        return { block: true, reason: `[BLOQUEADO] ${entry.severity}: ${command} (modo não-interativo)` };
+      }
+
+      const choice = await ctx.ui.select(
+        `\u26A0\uFE0F Operação em arquivo sensível (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nComando: ${command}`,
+        ["Permitir esta vez", "Bloquear"]
+      );
+      if (choice === "Bloquear") {
+        return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
+      }
+      await logEvent("bash", `${entry.reason}: ${command} (permitido pelo usuário)`, false, ctx);
+      return undefined;
     }
   }
 
@@ -540,7 +535,14 @@ async function handlePathAccess(
 }
 
 export default function (pi: ExtensionAPI) {
-  console.error("[SECURITY_GUARD] Carregado. Modo:", process.env.PI_SECURITY_MODE ?? "interactive");
+  pi.on("session_start", async (_event, ctx) => {
+    if (ctx?.hasUI) {
+      ctx.ui.notify(
+        `[SEGURANÇA] Guarda carregado. Modo: ${process.env.PI_SECURITY_MODE ?? "interactive"}`,
+        "info"
+      );
+    }
+  });
 
   pi.on("tool_call", async (event, ctx) => {
     const config = getConfig(ctx);
@@ -563,6 +565,45 @@ export default function (pi: ExtensionAPI) {
       const path = input.path as string;
       if (!path) return undefined;
       return handlePathAccess(toolName, path, ctx, config);
+    }
+
+    // Catch-all: check any tool string/array parameters for sensitive paths
+    // Covers codegraph_*, web_fetch, mcp, and other tools not explicitly handled
+    const stringValues: string[] = [];
+    for (const value of Object.values(input)) {
+      if (typeof value === "string") {
+        stringValues.push(value);
+      } else if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === "string") stringValues.push(item);
+        }
+      }
+    }
+    for (const str of stringValues) {
+      if (str.length === 0) continue;
+      for (const entry of SENSITIVE_PATH_PATTERNS) {
+        if (entry.pattern.test(str)) {
+          await logEvent(toolName, `${entry.reason}: ${str}`, true, ctx);
+          if (config.mode === "strict") {
+            return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${str}` };
+          }
+          if (config.mode === "audit-only" || config.mode === "permissive") {
+            return undefined;
+          }
+          if (!ctx.hasUI) {
+            return { block: true, reason: `[BLOQUEADO] ${entry.reason}: ${str} (modo não-interativo)` };
+          }
+          const choice = await ctx.ui.select(
+            `\u26A0\uFE0F Parâmetro sensível em ${toolName} (${entry.severity.toUpperCase()}):\n  ${entry.reason}\n\nValor: ${str}`,
+            ["Permitir esta vez", "Bloquear"]
+          );
+          if (choice === "Bloquear") {
+            return { block: true, reason: `[BLOQUEADO PELO USUÁRIO] ${entry.reason}` };
+          }
+          await logEvent(toolName, `${entry.reason}: ${str} (permitido pelo usuário)`, false, ctx);
+          return undefined;
+        }
+      }
     }
 
     return undefined;
