@@ -94,27 +94,23 @@ function getBlockedReason(config: AgentConfig, toolName: string, args: Record<st
 	const allowedExts = restrictions[toolName];
 	if (!allowedExts) return null; // tool not restricted
 
-	// Check all file path arguments
-	const filePaths: string[] = [];
-	if (typeof args.path === "string") filePaths.push(args.path);
-	if (typeof args.filePath === "string") filePaths.push(args.filePath);
-	if (typeof args.file === "string") filePaths.push(args.file);
-
-	// write tool sends content + path differently, check all string args ending in extension
-	for (const [key, val] of Object.entries(args)) {
-		if (typeof val === "string" && (val.includes("/") || val.includes("."))) {
-			const ext = val.slice(val.lastIndexOf("."));
-			if (ext.includes("/") || ext.includes(" ")) continue;
-			if (ext.length >= 2 && ext.length <= 6 && !ext.includes(" ")) {
-				filePaths.push(val);
-			}
-		}
+	// Collect file path arguments from known tool arg names
+	const fileCandidates: string[] = [];
+	const pathKeys = ["path", "filePath", "file", "oldPath", "newPath", "target", "location"];
+	for (const key of pathKeys) {
+		if (typeof args[key] === "string" && args[key].includes("/")) fileCandidates.push(args[key]);
 	}
 
-	for (const fp of filePaths) {
-		const ext = fp.slice(fp.lastIndexOf("."));
+	// No path arg found — nothing to restrict
+	if (fileCandidates.length === 0) return null;
+
+	// Check each candidate extension
+	for (const candidate of fileCandidates) {
+		const ext = candidate.slice(candidate.lastIndexOf("."));
+		if (ext.length < 2 || ext.length > 6) continue;
+		if (/[\s]/.test(ext)) continue;
 		if (!allowedExts.includes(ext)) {
-			return `\"${toolName}\" restrito a arquivos ${allowedExts.join(", ")} no modo ${config.label}. Alvo: ${fp}`;
+			return `"${toolName}" restrito a arquivos ${allowedExts.join(", ")} no modo ${config.label}. Alvo: ${candidate}`;
 		}
 	}
 
