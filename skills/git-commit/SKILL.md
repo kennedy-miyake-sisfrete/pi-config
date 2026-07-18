@@ -1,11 +1,13 @@
 ---
 name: git-commit
-description: Faz commits semânticos seguindo Conventional Commits com formato padronizado. Extrai número da tarefa do branch atual. Use ao finalizar qualquer tarefa ou sessão de desenvolvimento.
+description: Faz commits semânticos seguindo Conventional Commits com formato padronizado. Extrai número da tarefa do branch atual. Só executa quando o usuário solicitar explicitamente.
 ---
 
 # Git Commit
 
 ## Formato
+
+**Com descrição** (quando usuário solicitar explicitamente):
 
 ```
 tipo(escopo): Título descritivo em PT-BR
@@ -15,11 +17,17 @@ tipo(escopo): Título descritivo em PT-BR
 - Refs #<numero-tarefa> (se aplicável)
 ```
 
+**Sem descrição** (padrão):
+
+```
+tipo(escopo): Título descritivo em PT-BR #<numero-tarefa>
+```
+
 Onde:
 - `tipo` — um dos tipos abaixo
 - `escopo` — arquivo/diretório principal alterado (ex.: `auth`, `api/orders`, `docker-compose.yml`)
 - `título` — ≤ 72 caracteres, imperativo, descreve **o que** mudou, **em PT-BR**
-- `corpo` — **obrigatório** como bullet list. Cada bullet = uma alteração atômica. Explica **o que** foi feito (o diff já mostra o código; os bullets organizam as mudanças).
+- `corpo` — opcional (bullet list). Incluir apenas quando usuário solicitar explicitamente. Cada bullet = uma alteração atômica.
 
 ### Extração do número da tarefa
 
@@ -36,7 +44,9 @@ Exemplos:
 | `fix/payment-dsccw4` | `dsccw4` |
 | `refactor/api-112` | `112` |
 
-O número extraído **não** vai no título do commit. Use apenas para referência na descrição quando necessário (ex.: "Refs #25321").
+**Posição do número da tarefa:**
+- **Com descrição:** no corpo, como `- Refs #<numero>` (último bullet).
+- **Sem descrição:** ao final do título, como `tipo(escopo): Título #<numero>`.
 
 ## Tipos
 
@@ -62,7 +72,7 @@ O número extraído **não** vai no título do commit. Use apenas para referênc
 - **Um commit = uma mudança atômica.** Não misture refactor com feat no mesmo commit. Se precisar refatorar para implementar uma feat, faça dois commits: primeiro o refactor, depois a feat.
 - **Secrets nunca.** Revise o diff antes de commitar. Nada de .env, tokens, node_modules.
 - **PT-BR obrigatório.** Título e corpo do commit em português brasileiro.
-- **Corpo em bullet list.** Descrição sempre em formato de bullet list (`- `). Cada bullet = uma alteração importante. Ordem cronológica ou lógica. **Sem linha em branco entre bullets** — usar um único `-m` com quebras de linha.
+- **Descrição opcional.** Só incluir corpo (bullet list) quando o usuário solicitar. Sem corpo, referência da tarefa vai no título. Com corpo, usar bullet list, ordem cronológica/lógica. **Sem linha em branco entre bullets** — usar um único `-m` com quebras de linha.
 - **Sem push sem autorização.** Nunca execute `git push`. Só faça push se o usuário solicitar explicitamente.
 - **Surgical Changes.** Toda linha alterada serve ao requisito. Se notar dead code não relacionado, mencione — não comite junto.
 - **Revise antes de commitar.** Sempre rode `git diff --cached` antes de commitar.
@@ -104,6 +114,10 @@ git diff --check
 
 ### 4. Commitar
 
+**Só executar quando o usuário solicitar explicitamente.** Não commitar automaticamente. Aguardar comando do usuário.
+
+**Com descrição** (quando usuário pedir corpo):
+
 Usar um único `-m` para o corpo, com quebras de linha entre os bullets (sem linha em branco):
 
 ```bash
@@ -125,6 +139,18 @@ git commit \
 - Refs #25321"
 ```
 
+**Sem descrição** (padrão):
+
+```bash
+git commit -m "tipo(escopo): Título descritivo em PT-BR #<numero-tarefa>"
+```
+
+Exemplo:
+
+```bash
+git commit -m "feat(auth): Adiciona rota de login com JWT #25321"
+```
+
 ### 5. Verificar push
 
 ```bash
@@ -142,11 +168,13 @@ BRANCH=$(git branch --show-current)
 ## Fluxo completo
 
 ```
-1. git status                          # ver o estado geral
-2. git add <arquivos-do-escopo>       # stage cirúrgico
-3. git status                          # conferir staged
-4. git diff --cached                   # revisar o diff
-5. git diff --check                    # whitespace
-6. git commit -m "tipo(escopo): msg" -m "- bullet 1.\n- bullet 2."  # corpo bullet list, sem linha em branco
-7. [somente se solicitado] git push    # nunca sem autorização explícita
+0. Confirmar com usuário se deseja commitar             # só executa se solicitado explicitamente
+1. git status                                           # ver o estado geral
+2. git add <arquivos-do-escopo>                        # stage cirúrgico
+3. git status                                           # conferir staged
+4. git diff --cached                                    # revisar o diff
+5. git diff --check                                     # whitespace
+6a. [com descrição] git commit -m "tipo(escopo): msg" -m "- bullet 1.\n- bullet 2."
+6b. [sem descrição]  git commit -m "tipo(escopo): msg #numero"  # padrão
+7. [somente se solicitado] git push                     # nunca sem autorização explícita
 ```

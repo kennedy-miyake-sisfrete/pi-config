@@ -1,10 +1,9 @@
 {
-  "lastChangelogVersion": "0.79.9",
+  "lastChangelogVersion": "0.80.6",
   "defaultProvider": "opencode-go",
   "defaultModel": "deepseek-v4-flash",
   "defaultThinkingLevel": "high",
   "enabledModels": [
-    "openrouter/openrouter/owl-alpha",
     "openrouter/deepseek/deepseek-v4-flash",
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "opencode-go/kimi-k2.6",
@@ -13,6 +12,9 @@
   ],
   "hideThinkingBlock": false,
   "theme": "miyake-catppuccin",
+  "extensions": [
+    "/home/miyake/.pi/agent/extensions/hooks/block-force-push.ts"
+  ],
   "packages": [
     "git:github.com/nicobailon/pi-mcp-adapter",
     "git:github.com/jonjonrankin/pi-caveman",
