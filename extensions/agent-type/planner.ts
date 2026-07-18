@@ -30,6 +30,10 @@ export const agentConfig: AgentConfig = {
 		"web_agent",
 		"web_fetch",
 	],
+	allowedExtensions: {
+		edit: [".md"],
+		write: [".md"],
+	},
 	agentsMd: `# PLANNER.md
 
 Behavioral guidelines for architectural thinking and system planning.
