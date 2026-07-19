@@ -4,8 +4,7 @@
  * AGENTS.md: guidelines para produção de conteúdo escrito:
  *   análise, estruturação, escrita clara, revisão rigorosa.
  *
- * Tools: leitura + escrita. Bash e codegraph disponíveis
- * para pesquisa e verificação de contexto, mas foco em texto.
+ * Tools: todas disponíveis, mas edit/write restrito a .md.
  */
 
 import type { AgentConfig } from "./index.ts";

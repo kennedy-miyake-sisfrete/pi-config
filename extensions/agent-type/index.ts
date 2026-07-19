@@ -45,32 +45,40 @@ const AGENTS: Record<string, AgentConfig> = {
 };
 
 let currentType: AgentConfig["type"] = "coder";
-let toolsBeforeSwitch: string[] | null = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Tools gerenciadas por esta extensão — todas as tools built-in do pi.
+ * Tools NÃO listadas aqui são tratadas como "custom" (de outras extensões)
+ * e NUNCA são removidas ao restringir o conjunto ativo.
+ *
+ * ⚠️  Quando o pi adicionar novas tools built-in, adicione-as aqui.
+ */
+const MANAGED_TOOLS = new Set([
+	"read", "bash", "edit", "write",
+	"codegraph_codegraph_search", "codegraph_codegraph_context",
+	"codegraph_codegraph_node", "codegraph_codegraph_explore",
+	"codegraph_codegraph_trace", "mcp", "web_search", "web_agent", "web_fetch",
+]);
+
 function applyTools(pi: ExtensionAPI, config: AgentConfig): void {
+	const current = pi.getActiveTools();
+
 	if (config.activeTools === null) {
-		if (toolsBeforeSwitch !== null) {
-			pi.setActiveTools(toolsBeforeSwitch);
-			toolsBeforeSwitch = null;
-		}
+		// Modo irrestrito: garante que todas as tools gerenciadas estão
+		// disponíveis, preservando tools de outras extensões.
+		const restored = [...new Set([...current, ...MANAGED_TOOLS])];
+		pi.setActiveTools(restored);
 		return;
 	}
-	if (toolsBeforeSwitch === null) {
-		toolsBeforeSwitch = pi.getActiveTools();
-	}
-	const existing = pi.getActiveTools();
-	const managed = new Set([
-		"read", "bash", "edit", "write", "grep", "find", "ls",
-		"codegraph_codegraph_search", "codegraph_codegraph_context",
-		"codegraph_codegraph_node", "codegraph_codegraph_explore",
-		"codegraph_codegraph_trace", "mcp", "web_search", "web_agent", "web_fetch",
-	]);
-	const merged = [...config.activeTools, ...existing.filter((t) => !managed.has(t))];
-	pi.setActiveTools([...new Set(merged)]);
+
+	// Modo restrito: apenas tools da config + tools custom não-gerenciadas.
+	const custom = current.filter((t) => !MANAGED_TOOLS.has(t));
+	const merged = [...new Set([...config.activeTools, ...custom])];
+	pi.setActiveTools(merged);
 }
 
 function blockedReason(config: AgentConfig, toolName: string, input: Record<string, unknown>): string | null {
@@ -165,7 +173,9 @@ export default function (pi: ExtensionAPI) {
 		handler: async (args, ctx) => handleAgent(args, pi, ctx),
 	});
 
-	// Restaura estado ao iniciar sessão
+	// Restaura estado ao iniciar sessão.
+	// NÃO emite custom:agent-switch aqui — status-bar lê diretamente da
+	// sessão, evitando condição de corrida com a criação do editor.
 	pi.on("session_start", async (_event, ctx) => {
 		const entries = ctx.sessionManager.getEntries();
 		const last = entries
@@ -180,7 +190,6 @@ export default function (pi: ExtensionAPI) {
 		const config = AGENTS[currentType];
 		if (config) {
 			applyTools(pi, config);
-			pi.events?.emit("custom:agent-switch", { type: currentType });
 		}
 	});
 

@@ -2,11 +2,11 @@
  * PLANNER — tipo de agente focado em planejamento, arquitetura e análise.
  *
  * AGENTS.md: guidelines para pensar antes de agir:
- *   contexto primeiro,分解 (decomposição), análise de trade-offs,
+ *   contexto primeiro, 分解 (decomposição), análise de trade-offs,
  *   validação de hipóteses, documentação de decisões.
  *
- * Tools: read-only + bash (comandos seguros). Sem edit/write.
- * Use /agent para alternar para CODER quando for implementar.
+ * Tools: todas disponíveis, mas edit/write restrito a .md.
+ * Use /agent para alternar para CODER quando for implementar alterações em código.
  */
 
 import type { AgentConfig } from "./index.ts";
@@ -14,22 +14,7 @@ import type { AgentConfig } from "./index.ts";
 export const agentConfig: AgentConfig = {
 	type: "planner",
 	label: "PLANNER",
-	activeTools: [
-		"read",
-		"bash",
-		"grep",
-		"find",
-		"ls",
-		"codegraph_codegraph_search",
-		"codegraph_codegraph_context",
-		"codegraph_codegraph_node",
-		"codegraph_codegraph_explore",
-		"codegraph_codegraph_trace",
-		"mcp",
-		"web_search",
-		"web_agent",
-		"web_fetch",
-	],
+	activeTools: null,
 	allowedExtensions: {
 		edit: [".md"],
 		write: [".md"],
