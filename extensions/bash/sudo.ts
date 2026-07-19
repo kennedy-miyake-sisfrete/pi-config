@@ -2,7 +2,7 @@
  * Sudo password extension for pi.
  *
  * Intercepts `bash` tool calls that use `sudo`, prompts the user for the
- * password once per session, and injects it via SUDO_ASKPASS + SUDO_PW
+ * password a cada execução, e injeta via SUDO_ASKPASS + SUDO_PW
  * environment variables. Never modifies the command string with the password.
  *
  * Funciona com:
@@ -12,7 +12,8 @@
  *   cmd | sudo tee file   ← pipes preservados, sem conflito de stdin
  *
  * Segurança:
- *   - Senha cacheada em memória (Map), nunca persiste em disco
+ *   - Senha transmitida em variável de módulo (transiente), nunca cacheada
+ *   - Senha removida imediatamente após execução do comando
  *   - Askpass script em temp dir, removido no session_shutdown
  *   - Env var SUDO_PW visível apenas no processo filho do spawn
  *   - Nenhuma transformação no command string expõe a senha
@@ -26,26 +27,21 @@ import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 import { containsSudo, SUDO_REPLACE_RE } from "./utils.ts";
 
 // ---------------------------------------------------------------------------
-// Password cache (em memória, escopo do módulo = escopo da extension)
+// Password transient (escopo do módulo, valor único por execução)
 // ---------------------------------------------------------------------------
 
-const passwordCache = new Map<string, string>();
-const CACHE_KEY = "default";
+let _currentPassword: string | null = null;
 
-export function hasCachedPassword(): boolean {
-	return passwordCache.has(CACHE_KEY);
+export function getCurrentPassword(): string | null {
+	return _currentPassword;
 }
 
-export function getCachedPassword(): string | undefined {
-	return passwordCache.get(CACHE_KEY);
+export function setCurrentPassword(password: string): void {
+	_currentPassword = password;
 }
 
-export function setCachedPassword(password: string): void {
-	passwordCache.set(CACHE_KEY, password);
-}
-
-export function clearPasswordCache(): void {
-	passwordCache.delete(CACHE_KEY);
+export function clearCurrentPassword(): void {
+	_currentPassword = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,17 +86,19 @@ function cleanupAskpass(): void {
 /**
  * Cria um `BashSpawnHook` que:
  * 1. Detecta `sudo` no comando
- * 2. Se senha estiver cacheada, substitui `sudo` por `sudo -A`
+ * 2. Se senha estiver disponível, substitui `sudo` por `sudo -A`
  * 3. Injeta SUDO_ASKPASS e SUDO_PW no environment
  *
  * O spawnHook é chamado internamente pelo bash tool a cada execução.
- * Como ele captura a variável `passwordCache` via closure, o valor
- * SEMPRE reflete o estado atual do cache (setado antes da delegacao).
+ * A senha deve ser setada via setCurrentPassword() antes de chamar
+ * bashTool.execute().
  */
 export function createSudoAwareSpawnHook(): BashSpawnHook {
 	return ({ command, cwd, env }) => {
-		// Verificacao rapida: sem sudo ou sem cache, passa direto
-		if (!containsSudo(command) || !hasCachedPassword()) {
+		const password = getCurrentPassword();
+
+		// Verificacao rapida: sem sudo ou sem senha, passa direto
+		if (!containsSudo(command) || !password) {
 			return { command, cwd, env };
 		}
 
@@ -116,7 +114,7 @@ export function createSudoAwareSpawnHook(): BashSpawnHook {
 			env: {
 				...env,
 				SUDO_ASKPASS: ensureAskpassScript(),
-				SUDO_PW: getCachedPassword()!,
+				SUDO_PW: password,
 			},
 		};
 	};
@@ -130,15 +128,17 @@ export function createSudoAwareSpawnHook(): BashSpawnHook {
  * Cria `BashOperations` que injeta SUDO_ASKPASS + SUDO_PW no ambiente
  * antes de executar comandos sudo. Usado pelo handler `user_bash`.
  *
- * Compartilha o mesmo cache de senha e o mesmo askpass script do
- * spawnHook, entao senha ja digitada em tool_call tambem vale aqui.
+ * Usa o mesmo setCurrentPassword/getCurrentPassword do spawnHook,
+ * então senha digitada em tool_call também vale aqui.
  */
 export function createSudoAwareBashOperations(): BashOperations {
 	const local = createLocalBashOperations();
 
 	return {
 		exec: (command, cwd, options) => {
-			if (!containsSudo(command) || !hasCachedPassword()) {
+			const password = getCurrentPassword();
+
+			if (!containsSudo(command) || !password) {
 				return local.exec(command, cwd, options);
 			}
 
@@ -153,7 +153,7 @@ export function createSudoAwareBashOperations(): BashOperations {
 				env: {
 					...options.env,
 					SUDO_ASKPASS: ensureAskpassScript(),
-					SUDO_PW: getCachedPassword()!,
+					SUDO_PW: password,
 				},
 			});
 		},
@@ -185,12 +185,12 @@ export async function promptForSudoPassword(ctx: ExtensionContext): Promise<stri
 
 /**
  * Registra cleanup no session_shutdown:
- * - Limpa cache de senha
+ * - Remove senha transiente
  * - Remove temp files do askpass
  */
 export function registerSudoCleanup(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async () => {
-		clearPasswordCache();
+		clearCurrentPassword();
 		cleanupAskpass();
 	});
 }
