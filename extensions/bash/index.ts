@@ -16,12 +16,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
 import { containsSudo } from "./utils.ts";
 import {
-	clearPasswordCache,
+	clearCurrentPassword,
 	createSudoAwareSpawnHook,
-	hasCachedPassword,
 	promptForSudoPassword,
 	registerSudoCleanup,
-	setCachedPassword,
+	setCurrentPassword,
 } from "./sudo.ts";
 
 export default function (pi: ExtensionAPI) {
@@ -38,33 +37,31 @@ export default function (pi: ExtensionAPI) {
 
 		// Envolve o execute original para:
 		// 1. Detectar sudo e pedir senha antes de executar
-		// 2. Senha cacheada dura a sessão toda
-		//    Se errou a senha, use /sudo-clear pra resetar
+		// 2. Senha é pedida toda vez (sem cache)
+		// 3. Senha removida após execução
 		execute: async (id, params, signal, onUpdate, ctx) => {
 			const hadSudo = containsSudo(params.command);
 
-			if (hadSudo && !hasCachedPassword()) {
+			if (hadSudo) {
 				const password = await promptForSudoPassword(ctx);
 				if (!password) {
 					return {
-						content: [{ type: "text", text: "sudo: cancelado — senha não fornecida. Use /sudo-clear pra reiniciar." }],
+						content: [{ type: "text", text: "sudo: cancelado — senha não fornecida." }],
 						details: undefined,
 					};
 				}
-				setCachedPassword(password);
+				setCurrentPassword(password);
 			}
 
-			// Delega para o bash tool (spawnHook transforma sudo → sudo -A)
-			return bashTool.execute(id, params, signal, onUpdate);
-		},
-	});
-
-	// --- Comando para limpar senha cacheada ---
-	pi.registerCommand("sudo-clear", {
-		description: "Limpa a senha sudo cacheada (força nova digitação na próxima execução)",
-		handler: async (_args, ctx) => {
-			clearPasswordCache();
-			ctx.ui.notify("Senha sudo removida do cache.", "info");
+			try {
+				// Delega para o bash tool (spawnHook transforma sudo → sudo -A)
+				return await bashTool.execute(id, params, signal, onUpdate);
+			} finally {
+				// Remove senha imediatamente após execução (nunca fica cacheada)
+				if (hadSudo) {
+					clearCurrentPassword();
+				}
+			}
 		},
 	});
 
