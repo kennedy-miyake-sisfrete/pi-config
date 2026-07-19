@@ -17,10 +17,10 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 import { containsSudo } from "../bash/utils.ts";
 import {
+	clearCurrentPassword,
 	createSudoAwareBashOperations,
-	hasCachedPassword,
 	promptForSudoPassword,
-	setCachedPassword,
+	setCurrentPassword,
 } from "../bash/sudo.ts";
 
 // ---------------------------------------------------------------------------
@@ -122,10 +122,10 @@ export function registerBashIndicator(pi: ExtensionAPI) {
 			text: modeDisplay(newMode),
 		});
 
-		if (containsSudo(event.command) && !hasCachedPassword()) {
+		if (containsSudo(event.command)) {
 			if (ctx.hasUI) {
 				const password = await promptForSudoPassword(ctx);
-				if (password) setCachedPassword(password);
+				if (password) setCurrentPassword(password);
 			}
 		}
 
@@ -135,7 +135,7 @@ export function registerBashIndicator(pi: ExtensionAPI) {
 	});
 
 	function createWidgetAwareOps(ctx: any, command: string) {
-		const baseOps = hasCachedPassword() && containsSudo(command)
+		const baseOps = containsSudo(command)
 			? createSudoAwareBashOperations()
 			: createLocalBashOperations();
 
@@ -149,6 +149,9 @@ export function registerBashIndicator(pi: ExtensionAPI) {
 					return await baseOps.exec(cmd, cwd, options);
 				} finally {
 					emitBashMode(ctx, null);
+					if (containsSudo(command)) {
+						clearCurrentPassword();
+					}
 				}
 			},
 		};
