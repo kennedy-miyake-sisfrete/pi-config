@@ -14,5 +14,6 @@ Thumbs.db
 # Logs
 *.log
 
-# docs/task
-docs/tasks/
+# sandbox
+.sandbox-cache/
+.web-fetch-cache/
