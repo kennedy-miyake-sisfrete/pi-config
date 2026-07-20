@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: pi-searxng
+    ports:
+      - "4000:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:4000/
+      - SEARXNG_SECRET_KEY=${SEARXNG_KEY}
+      - SEARXNG_METHOD=GET
+    volumes:
+      - searxng-data:/etc/searxng:rw
+    restart: unless-stopped
+
+volumes:
+  searxng-data:
+
+# ── After first start ──────────────────────────────────────────────────
+# SearXNG needs 'json' in search.formats for the API to work.
+# Run this once after 'docker compose up -d':
+#
+#   # Add JSON format to settings.yml
+#   docker exec pi-searxng sed -i 's/  formats:\n    - html/  formats:\n    - html\n    - json/' /etc/searxng/settings.yml
+#   docker restart pi-searxng
+#
+# Or manually edit ./searxng-data/settings.yml (requires restart).
+# ────────────────────────────────────────────────────────────────────────
