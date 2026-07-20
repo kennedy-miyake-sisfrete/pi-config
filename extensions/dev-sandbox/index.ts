@@ -14,10 +14,8 @@
  *   - security-guard = soft boundary (pattern matching, confirmação)
  *   - dev-sandbox    = hard boundary (kernel namespaces + seccomp)
  *
- * Integração com bash/:
- *   - Importa spawnHook de sudo da extensão bash/
- *   - Bash extension faz try/catch no registerTool → skip se já registrado
- *   - Dev-sandbox registra tool unificado: spawnHook (sudo) + operations (bwrap)
+ * Integração:
+ *   - Dev-sandbox registra tool unificado com bwrap operations
  *
  * Configuração:
  *   - ~/.pi/agent/extensions/dev-sandbox.json (global)
@@ -49,15 +47,7 @@ import { createFindOps } from "./tools/find-ops";
 import { createLsOps } from "./tools/ls-ops";
 import { createGrepTool, setGrepConfig } from "./tools/grep";
 
-// ── Importa sudo utils da extensão bash/ ─────────
-import { containsSudo } from "../bash/utils.ts";
-import {
-  clearCurrentPassword,
-  createSudoAwareSpawnHook,
-  promptForSudoPassword,
-  registerSudoCleanup,
-  setCurrentPassword,
-} from "../bash/sudo.ts";
+
 
 export default function (pi: ExtensionAPI) {
   // ── Flag --no-sandbox ──────────────────────────
@@ -183,72 +173,23 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // ── Bash tool unificado: sudo spawnHook + bwrap operations ──
-  //
-  // Combina duas personalizações ortogonais de createBashTool:
-  //   spawnHook  → gerencia senha sudo (da extensão bash/)
-  //   operations → roteia execução pro bwrap (dev-sandbox)
-  //
-  // O wrapper de execute replica a lógica de detecção de sudo
-  // da extensão bash/ (pede senha antes, limpa depois).
-  {
-    const unifiedBashTool = createBashTool(localCwd, {
-      spawnHook: createSudoAwareSpawnHook(),
-      operations: undefined as any, // placeholder, será populado no execute
-    });
+  // ── Bash tool unificado com bwrap operations ──
+  pi.registerTool({
+    ...createBashTool(localCwd),
+    label: "bash (sandboxed)",
 
-    // try/catch defensivo: se bash extension registrou antes
-    // (ex: __dirname detection falhou), skip silenciosamente.
-    try {
-      pi.registerTool({
-        ...unifiedBashTool,
-        label: "bash (sandboxed)",
+    async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
+      if (!enabled || !config) {
+        const fallback = createBashTool(localCwd);
+        return fallback.execute(id, params, signal, onUpdate);
+      }
 
-        async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
-        if (!enabled || !config) {
-          // Fallback: bash com sudo spawnHook, sem bwrap
-          const fallback = createBashTool(localCwd, {
-            spawnHook: createSudoAwareSpawnHook(),
-          });
-          return fallback.execute(id, params, signal, onUpdate);
-        }
-
-        // Reconstrói tool com operations atualizadas (config populado)
-        const tool = createBashTool(localCwd, {
-          spawnHook: createSudoAwareSpawnHook(),
-          operations: createBashOps(config, localCwd),
-        });
-
-        // Detecção de sudo (mesma lógica da extensão bash/)
-        const hadSudo = containsSudo(params.command);
-        if (hadSudo) {
-          const password = await promptForSudoPassword(ctx);
-          if (!password) {
-            return {
-              content: [{ type: "text", text: "sudo: cancelado — senha não fornecida." }],
-              details: undefined,
-            };
-          }
-          setCurrentPassword(password);
-        }
-
-        try {
-          return await tool.execute(id, params, signal, onUpdate);
-        } finally {
-          if (hadSudo) {
-            clearCurrentPassword();
-          }
-          }
-        },
+      const tool = createBashTool(localCwd, {
+        operations: createBashOps(config, localCwd),
       });
-    } catch (_err) {
-      // Bash extension já registrou — skip (não deve ocorrer,
-      // mas é seguro ter fallback defensivo)
-    }
-  }
-
-  // ── Cleanup sudo no fim da sessão ──────────────
-  registerSudoCleanup(pi);
+      return tool.execute(id, params, signal, onUpdate);
+    },
+  });
 
   pi.registerTool({
     ...createFindTool(localCwd),
