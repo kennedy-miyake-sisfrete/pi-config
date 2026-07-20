@@ -87,7 +87,7 @@ export const DEFAULT_CONFIG: SandboxConfig = {
     },
   },
   seccomp: {
-    enabled: true,
+    enabled: false,
   },
   ssh: {
     mountReadOnly: true,

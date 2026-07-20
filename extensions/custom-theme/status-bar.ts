@@ -122,13 +122,6 @@ class ModelInfoEditor extends CustomEditor {
 			}
 		})();
 
-		const modelInfo = [
-			borderFg(this.modelId),
-			this.provider ? " " + this.uiTheme.fg("muted", this.provider) : "",
-			" " + this.uiTheme.fg("dim", this.thinking),
-			" " + agentBadge,
-		].join("");
-
 		const ctxStr = this.contextWindow > 0
 			? `${this.uiTheme.fg("muted", `${Math.round(this.contextUsage / this.contextWindow * 100)}% (${formatTokenCount(this.contextUsage)}/${formatTokenCount(this.contextWindow)})`)} `
 			: "";
@@ -168,12 +161,31 @@ class ModelInfoEditor extends CustomEditor {
 		const paddedContent = editorLines.map((line) => rail + fill(line));
 		const spacer = rail + fill("");
 
-		const leftPart = modelInfo;
 		const rightPart = tokenInfo;
-		const leftW = visibleWidth(leftPart);
 		const rightW = visibleWidth(rightPart);
+
+		// Calcula espaço disponível para modelId dentro do innerW
+		// Reserva: gap mínimo (1) + rightW + provider + thinking + badge
+		const providerStr = this.provider ? " " + this.uiTheme.fg("muted", this.provider) : "";
+		const thinkingStr = " " + this.uiTheme.fg("dim", this.thinking);
+		const agentBadgeStr = " " + agentBadge;
+		const fixedOverheadW = visibleWidth(providerStr) + visibleWidth(thinkingStr) + visibleWidth(agentBadgeStr);
+		const availableForModelId = Math.max(0, innerW - 1 - fixedOverheadW - rightW);
+
+		const truncatedModelId = availableForModelId > 0
+			? truncateToWidth(this.modelId, availableForModelId, "…")
+			: "";
+
+		const leftPart = [
+			borderFg(truncatedModelId),
+			providerStr,
+			thinkingStr,
+			agentBadgeStr,
+		].join("");
+
+		const leftW = visibleWidth(leftPart);
 		const gap = Math.max(1, innerW - leftW - rightW);
-		const metaLine = rail + leftPart + " ".repeat(gap) + rightPart;
+		const metaLine = truncateToWidth(rail + leftPart + " ".repeat(gap) + rightPart, width);
 
 		return [topBorder, bashLine, ...paddedContent, spacer, metaLine, bottomBorder, ...autoComplete];
 	}
