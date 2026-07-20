@@ -1,0 +1,26 @@
+{
+  "enabled": true,
+  "internet": {
+    "enabled": true
+  },
+  "filesystem": {
+    "extraWritable": [
+      "/var/run/docker.sock"
+    ],
+    "extraReadonly": [
+      "/mnt/dados"
+    ],
+    "denyPaths": [
+      "/sbin",
+      "/usr/sbin",
+      "/root"
+    ],
+    "cacheDirs": {
+      "npm": "",
+      "pip": ""
+    }
+  },
+  "ssh": {
+    "mountReadOnly": true
+  }
+}
