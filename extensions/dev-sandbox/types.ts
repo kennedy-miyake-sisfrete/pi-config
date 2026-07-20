@@ -25,11 +25,6 @@ export interface SandboxInternetConfig {
   enabled: boolean;
 }
 
-export interface SandboxSeccompConfig {
-  /** Ativar filtro seccomp-bpf para bloquear syscalls perigosas. */
-  enabled: boolean;
-}
-
 export interface SandboxSshConfig {
   /** Monta ~/.ssh read-only no namespace. */
   mountReadOnly: boolean;
@@ -42,8 +37,6 @@ export interface SandboxConfig {
   internet: SandboxInternetConfig;
   /** Configuração de filesystem. */
   filesystem: SandboxFilesystemConfig;
-  /** Configuração de seccomp. */
-  seccomp: SandboxSeccompConfig;
   /** Configuração de acesso SSH. */
   ssh: SandboxSshConfig;
 }
@@ -85,9 +78,6 @@ export const DEFAULT_CONFIG: SandboxConfig = {
       npm: "",
       pip: "",
     },
-  },
-  seccomp: {
-    enabled: false,
   },
   ssh: {
     mountReadOnly: true,

@@ -1,6 +1,6 @@
 # Dev Sandbox
 
-Sandbox de desenvolvimento via bubblewrap + seccomp para pi.
+Sandbox de desenvolvimento via bubblewrap para pi.
 
 ## Instalação
 
@@ -22,7 +22,6 @@ sudo apt install bubblewrap
 ├─────────────────────────────────┤
 │ dev-sandbox (NOVO)              │ ← Hard boundary
 │  bwrap: namespaces do kernel    │   Filesystem isolado
-│  seccomp: bloqueio de syscalls  │   Syscalls perigosas negadas
 └─────────────────────────────────┘
 ```
 
@@ -60,14 +59,6 @@ NÃO montado:
   Dispositivos de bloco           → sem /dev/sda
 ```
 
-## Seccomp (20 syscalls bloqueadas)
-
-mount, umount2, pivot_root, chroot, setns, unshare,
-reboot, kexec_load, init_module, delete_module,
-ioperm, iopl, swapon, swapoff, ptrace,
-process_vm_readv, process_vm_writev, nfsservctl,
-syslog, bpf
-
 ## Configuração
 
 ### Global (`~/.pi/agent/extensions/dev-sandbox.json`)
@@ -82,7 +73,6 @@ syslog, bpf
     "denyPaths": ["/sbin", "/usr/sbin", "/root"],
     "cacheDirs": { "npm": "", "pip": "" }
   },
-  "seccomp": { "enabled": true },
   "ssh": { "mountReadOnly": true }
 }
 ```
@@ -132,4 +122,4 @@ Adicione ao `.gitignore`:
 - Cada tool call cria/destrói um namespace (~30ms overhead)
 - `/tmp` é efêmero entre comandos (use `$PWD` para persistência)
 - `npm install` com scripts de lifecycle executa dentro do sandbox
-  (seguro porque home real inacessível + seccomp ativo)
+  (seguro porque home real inacessível)

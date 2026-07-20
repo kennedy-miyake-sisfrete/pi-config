@@ -20,9 +20,6 @@
       "pip": ""
     }
   },
-  "seccomp": {
-    "enabled": true
-  },
   "ssh": {
     "mountReadOnly": true
   }

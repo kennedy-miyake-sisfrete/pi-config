@@ -7,12 +7,11 @@
  *   - Rede do host compartilhada (para LLM API, npm, git)
  *   - ~/.ssh montado read-only (git push/pull)
  *   - Cache npm/pip persistente em .sandbox-cache/
- *   - Filtro seccomp (deny-list de syscalls perigosas)
  *   - HOME isolado (sem acesso ao home real)
  *
  * Complementa security-guard.ts:
  *   - security-guard = soft boundary (pattern matching, confirmação)
- *   - dev-sandbox    = hard boundary (kernel namespaces + seccomp)
+ *   - dev-sandbox    = hard boundary (kernel namespaces)
  *
  * Integração:
  *   - Dev-sandbox registra tool unificado com bwrap operations
@@ -37,7 +36,6 @@ import {
   createLsTool,
 } from "@earendil-works/pi-coding-agent";
 import { loadConfig, isBwrapAvailable } from "./config";
-import { initSeccomp, cleanup } from "./bwrap-executor";
 import type { SandboxConfig } from "./types";
 import { createBashOps } from "./tools/bash-ops";
 import { createReadOps } from "./tools/read-ops";
@@ -96,20 +94,6 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return;
-    }
-
-    // Inicializa seccomp
-    if (config.seccomp.enabled) {
-      try {
-        initSeccomp();
-      } catch (err) {
-        if (ctx.hasUI) {
-          ctx.ui.notify(
-            `Falha ao inicializar seccomp: ${err instanceof Error ? err.message : err}`,
-            "warning",
-          );
-        }
-      }
     }
 
     enabled = true;
@@ -251,7 +235,7 @@ export default function (pi: ExtensionAPI) {
     const cwd = ctx?.cwd ?? localCwd;
     const sandboxNote = [
       `Current working directory: ${cwd}`,
-      "(sandboxed — bubblewrap namespaces + seccomp)",
+      "(sandboxed — bubblewrap namespaces)",
     ].join(" ");
     return { systemPrompt: sandboxNote };
   });
@@ -274,7 +258,6 @@ export default function (pi: ExtensionAPI) {
         `Status: ativo`,
         `Workspace: ${localCwd}`,
         `Rede: ${config.internet.enabled ? "compartilhada com host" : "isolada"}`,
-        `Seccomp: ${config.seccomp.enabled ? "ativo (bloqueio de syscalls)" : "desabilitado"}`,
         `SSH: ${config.ssh.mountReadOnly ? "~/.ssh montado read-only" : "não montado"}`,
         `Cache npm: ${config.filesystem.cacheDirs.npm || "não configurado"}`,
         `Cache pip: ${config.filesystem.cacheDirs.pip || "não configurado"}`,
@@ -286,7 +269,6 @@ export default function (pi: ExtensionAPI) {
 
   // ── session_shutdown ──────────────────────────
   pi.on("session_shutdown", () => {
-    cleanup();
     enabled = false;
     config = null;
   });
