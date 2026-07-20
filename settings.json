@@ -13,11 +13,11 @@
   "hideThinkingBlock": false,
   "theme": "miyake-catppuccin",
   "extensions": [
-    "/home/miyake/.pi/agent/extensions/hooks/block-force-push.ts"
+    "/home/miyake/.pi/agent/extensions/hooks/block-force-push.ts",
+    "/home/miyake/.pi/agent/extensions/pi-web-search/index.ts"
   ],
   "packages": [
     "git:github.com/nicobailon/pi-mcp-adapter",
-    "git:github.com/jonjonrankin/pi-caveman",
-    "git:github.com/offmiijin/pi-web-search"
+    "git:github.com/jonjonrankin/pi-caveman"
   ]
 }
