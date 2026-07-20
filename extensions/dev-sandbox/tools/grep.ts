@@ -138,11 +138,26 @@ export function createGrepTool(cwd: string) {
       rgArgs.push(searchPath);
 
       // Executa via bwrap, pipe to head -n for total limit
-      const { stdout } = await execInSandbox(config, {
+      const { stdout, stderr, exitCode } = await execInSandbox(config, {
         command: ["bash", "-c", `rg ${rgArgs.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ")} | head -n ${limit}`],
         cwd: searchCwd,
         signal,
       });
+
+      // rg exit code 1 = no matches, 0 = matches found, 2 = error
+      if (exitCode === 2 || (exitCode !== 0 && exitCode !== 1 && stderr)) {
+        const errText = stderr.trim() || `grep failed (exit code ${exitCode})`;
+        if (errText.includes("not found") || errText.includes("No such file")) {
+          return {
+            content: [{ type: "text", text: `Error: ripgrep (rg) not available in sandbox. ${errText}` }],
+            details: undefined,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Error: ${errText}` }],
+          details: undefined,
+        };
+      }
 
       const trimmed = stdout.trim();
 

@@ -34,6 +34,7 @@ import {
   createBashTool,
   createFindTool,
   createLsTool,
+  createGrepTool as createGrepToolSdk,
 } from "@earendil-works/pi-coding-agent";
 import { loadConfig, isBwrapAvailable } from "./config";
 import type { SandboxConfig } from "./types";
@@ -214,7 +215,7 @@ export default function (pi: ExtensionAPI) {
     async execute(id, params, signal, onUpdate, ctx) {
       const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createGrepTool(cwd);
+        const fallback = createGrepToolSdk(cwd);
         return fallback.execute(id, params, signal, onUpdate, ctx);
       }
       const tool = createGrepTool(cwd);

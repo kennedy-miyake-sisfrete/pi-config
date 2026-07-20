@@ -2,6 +2,7 @@
  * ReadOperations — leitura de arquivos via bwrap.
  */
 
+import { Buffer } from "node:buffer";
 import type { ReadOperations } from "@earendil-works/pi-coding-agent";
 import type { SandboxConfig } from "../types";
 import { execInSandbox } from "../bwrap-executor";
@@ -16,7 +17,7 @@ export function createReadOps(config: SandboxConfig, cwd: string): ReadOperation
       if (exitCode !== 0) {
         throw new Error(stderr || `Falha ao ler ${filePath}`);
       }
-      return stdout;
+      return Buffer.from(stdout, "utf-8");
     },
 
     async access(filePath) {
