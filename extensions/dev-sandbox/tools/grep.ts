@@ -73,7 +73,7 @@ export function createGrepTool(cwd: string) {
       params: Record<string, unknown>,
       signal: AbortSignal | undefined,
       _onUpdate: (data: Buffer) => void,
-      _ctx: ExtensionContext,
+      ctx: ExtensionContext,
     ): Promise<GrepToolResult> {
       const pattern = String(params.pattern || "");
       if (!pattern) {
@@ -82,6 +82,16 @@ export function createGrepTool(cwd: string) {
           details: undefined,
         };
       }
+
+      const config = _config;
+      if (!config) {
+        return {
+          content: [{ type: "text", text: "Error: sandbox not initialized" }],
+          details: undefined,
+        };
+      }
+
+      const searchCwd = ctx?.cwd ?? cwd;
 
       // Constrói comando rg
       const rgArgs: string[] = [
@@ -113,11 +123,10 @@ export function createGrepTool(cwd: string) {
         rgArgs.push("--glob", params.glob);
       }
 
-      // Limit
+      // Limit total matches via head -n (rg --max-count is per-file)
       const limit = typeof params.limit === "number" && params.limit > 0
         ? params.limit
         : DEFAULT_GREP_LIMIT;
-      rgArgs.push("--max-count", String(limit));
 
       // Pattern
       rgArgs.push("--", pattern);
@@ -128,17 +137,10 @@ export function createGrepTool(cwd: string) {
         : ".";
       rgArgs.push(searchPath);
 
-      // Executa via bwrap
-      if (!_config) {
-        return {
-          content: [{ type: "text", text: "Error: sandbox not initialized" }],
-          details: undefined,
-        };
-      }
-
-      const { stdout } = await execInSandbox(_config, {
-        command: rgArgs,
-        cwd,
+      // Executa via bwrap, pipe to head -n for total limit
+      const { stdout } = await execInSandbox(config, {
+        command: ["bash", "-c", `rg ${rgArgs.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ")} | head -n ${limit}`],
+        cwd: searchCwd,
         signal,
       });
 
@@ -151,7 +153,6 @@ export function createGrepTool(cwd: string) {
         };
       }
 
-      // Conta matches e notifica se limite foi atingido
       const lines = trimmed.split("\n");
       const details: Record<string, unknown> = {};
 
