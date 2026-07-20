@@ -4,7 +4,8 @@ auth.json
 # Sessions (contain conversation history)
 sessions/
 
-# Extension/node_modules (if any local extensions with deps)
+# Dependencies
+node_modules/
 extensions/**/node_modules/
 
 # OS files
