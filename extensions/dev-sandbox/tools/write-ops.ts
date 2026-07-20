@@ -12,7 +12,7 @@ export function createWriteOps(config: SandboxConfig, cwd: string): WriteOperati
       const { stderr, exitCode } = await execInSandbox(config, {
         command: [
           "bash", "-c",
-          `mkdir -p "$(dirname "${1}")" && cat > "${1}"`,
+          'mkdir -p "$(dirname "$1")" && cat > "$1"',
           "_", filePath,
         ],
         cwd,

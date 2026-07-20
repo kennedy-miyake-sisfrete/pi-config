@@ -21,11 +21,11 @@ export function createFindOps(config: SandboxConfig, cwd: string): FindOperation
         command: [
           "bash", "-c",
           [
-            `find "${1}"`,
-            `  -not -path '*/.git/*'`,
-            `  -not -path '*/node_modules/*'`,
-            `  -name "${2}"`,
-            `  -print`,
+            'find "$1"',
+            "  -not -path '*/.git/*'",
+            "  -not -path '*/node_modules/*'",
+            '  -name "$2"',
+            '  -print',
             `| head -n ${limit}`,
           ].join(" "),
           "_", searchCwd, pattern,
