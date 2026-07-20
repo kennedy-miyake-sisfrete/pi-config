@@ -52,15 +52,22 @@ export function createLsOps(config: SandboxConfig, cwd: string): LsOperations {
     },
 
     async readdir(dirPath) {
+      // Usa find -print0 para suportar nomes com newline
       const { stdout, exitCode } = await execInSandbox(config, {
-        command: ["ls", "-1a", dirPath],
+        command: [
+          "find", dirPath,
+          "-maxdepth", "1",
+          "-mindepth", "1",
+          "-print0",
+        ],
         cwd,
       });
       if (exitCode !== 0) {
         throw new Error(`Falha ao listar ${dirPath}`);
       }
-      return stdout.trim().split("\n").filter(
-        (entry) => entry !== "." && entry !== "..",
+      // Split por null byte; último elemento pode ser vazio após trailing \0
+      return stdout.split("\0").filter(
+        (entry) => entry !== "" && entry !== "." && entry !== "..",
       );
     },
   };
