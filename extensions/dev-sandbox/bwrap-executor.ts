@@ -17,9 +17,8 @@ import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
 // ─── Seccomp BPF ──────────────────────────────────────────────
 
-/** Syscalls bloqueadas — são operações de sistema que não fazem
- *  sentido dentro de um sandbox de desenvolvimento. */
-const BLOCKED_SYSCALLS: number[] = [
+/** Syscalls bloqueadas por arquitetura. */
+const BLOCKED_SYSCALLS_X86_64: number[] = [
   165, // mount
   166, // umount2
   155, // pivot_root
@@ -42,29 +41,54 @@ const BLOCKED_SYSCALLS: number[] = [
   321, // bpf
 ];
 
+const BLOCKED_SYSCALLS_AARCH64: number[] = [
+  40,  // mount
+  39,  // umount2
+  41,  // pivot_root
+  51,  // chroot
+  268, // setns
+  97,  // unshare
+  142, // reboot
+  104, // kexec_load
+  105, // init_module
+  106, // delete_module
+  // ioperm / iopl não existem em aarch64
+  224, // swapon
+  225, // swapoff
+  117, // ptrace
+  270, // process_vm_readv
+  271, // process_vm_writev
+  // nfsservctl não existe em aarch64
+  116, // syslog
+  280, // bpf
+];
+
+function getBlockedSyscalls(): number[] | null {
+  const arch = process.arch;
+  if (arch === "x64") return BLOCKED_SYSCALLS_X86_64;
+  if (arch === "arm64") return BLOCKED_SYSCALLS_AARCH64;
+  return null;
+}
+
 /**
- * Gera buffer BPF no formato struct sock_fprog:
- *   u16 len ; N × sock_filter (8 bytes cada)
+ * Gera buffer BPF com array puro de sock_filter (8 bytes cada).
  *
- * sock_filter (8 bytes):
- *   u16 code (LE)
- *   u8  jt
- *   u8  jf
- *   u32 k   (LE)
+ * Bubblewrap lê o FD como array de sock_filter (múltiplo de 8 bytes).
+ * NÃO inclui cabeçalho struct sock_fprog.
  *
  * Filtro: default ALLOW, bloqueia syscalls na lista.
- * Cada syscall bloqueada = 1 instrução JEQ → RET KILL.
+ * Cada syscall bloqueada = 1 instrução JEQ → RET KILL_PROCESS.
  */
-function buildSeccompFilter(): Buffer {
-  const count = BLOCKED_SYSCALLS.length;
-  // 1 instrução LD + N instruções JEQ + 1 RET ALLOW + 1 RET KILL
+function buildSeccompFilter(): Buffer | null {
+  const syscalls = getBlockedSyscalls();
+  if (!syscalls) return null;
+
+  const count = syscalls.length;
+  // 1 instrução LD + N instruções JEQ + 1 RET ALLOW + 1 RET KILL_PROCESS
   const total = 1 + count + 2;
-  const buf = Buffer.alloc(2 + total * 8);
+  const buf = Buffer.alloc(total * 8);
 
-  // Cabeçalho: número de instruções (u16 LE)
-  buf.writeUInt16LE(total, 0);
-
-  let offset = 2; // pula cabeçalho
+  let offset = 0;
 
   // Instrução 0: LD [0] — carrega número da syscall
   // BPF_LD | BPF_W | BPF_ABS = 0x20
@@ -75,23 +99,21 @@ function buildSeccompFilter(): Buffer {
   offset += 8;
 
   // Instruções JEQ para cada syscall bloqueada
-  // O target sempre é a última instrução (RET KILL) que está
-  // em count + 2 (índice 0-based)
-  const killIdx = total - 1; // última instrução é RET KILL
+  const killIdx = total - 1; // última instrução é RET KILL_PROCESS
 
   for (let i = 0; i < count; i++) {
-    const currentIdx = i + 1; // 0-based (após LD)
-    const jt = killIdx - (currentIdx + 1); // offset relativo ao próximo pc
+    const currentIdx = i + 1;
+    const jt = killIdx - (currentIdx + 1);
 
     // BPF_JMP | BPF_JEQ | BPF_K = 0x15
     buf.writeUInt16LE(0x15, offset);       // code
-    buf.writeUInt8(jt, offset + 2);         // jt → RET KILL
+    buf.writeUInt8(jt, offset + 2);         // jt → RET KILL_PROCESS
     buf.writeUInt8(0, offset + 3);          // jf → próxima instrução
-    buf.writeUInt32LE(BLOCKED_SYSCALLS[i], offset + 4);
+    buf.writeUInt32LE(syscalls[i], offset + 4);
     offset += 8;
   }
 
-  // RET ALLOW (penúltima instrução)
+  // RET ALLOW (penúltima)
   // BPF_RET | BPF_K = 0x06, SECCOMP_RET_ALLOW = 0x7FFF0000
   buf.writeUInt16LE(0x06, offset);
   buf.writeUInt8(0, offset + 2);
@@ -99,12 +121,12 @@ function buildSeccompFilter(): Buffer {
   buf.writeUInt32LE(0x7FFF0000, offset + 4);
   offset += 8;
 
-  // RET KILL (última instrução)
-  // SECCOMP_RET_KILL = 0x00000000
+  // RET KILL_PROCESS (última)
+  // SECCOMP_RET_KILL_PROCESS = 0x80000000
   buf.writeUInt16LE(0x06, offset);
   buf.writeUInt8(0, offset + 2);
   buf.writeUInt8(0, offset + 3);
-  buf.writeUInt32LE(0x00000000, offset + 4);
+  buf.writeUInt32LE(0x80000000, offset + 4);
 
   return buf;
 }
@@ -122,8 +144,13 @@ let seccompFile: string | null = null;
 export function initSeccomp(): number {
   if (seccompFd !== null) return seccompFd;
 
+  const filter = buildSeccompFilter();
+  if (!filter) {
+    throw new Error(`seccomp não suportado na arquitetura ${process.arch}`);
+  }
+
   seccompFile = join(tmpdir(), `pi-seccomp-${randomUUID()}.bpf`);
-  writeFileSync(seccompFile, buildSeccompFilter());
+  writeFileSync(seccompFile, filter);
   seccompFd = openSync(seccompFile, "r");
   return seccompFd;
 }
@@ -148,13 +175,37 @@ export function cleanupSeccomp(): void {
   } catch { /* ignorar erros de cleanup */ }
 }
 
+// ─── Cache de argumentos bwrap ──────────────────────────────
+
+const bwrapArgsCache = new Map<string, string[]>();
+
+function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
+  const parts = [
+    cwd,
+    String(config.internet.enabled),
+    String(config.ssh.mountReadOnly),
+    config.filesystem.cacheDirs.npm,
+    config.filesystem.cacheDirs.pip,
+    config.filesystem.denyPaths.join(","),
+    config.filesystem.extraWritable.join(","),
+    config.filesystem.extraReadonly.join(","),
+    String(config.seccomp.enabled),
+  ];
+  return parts.join("|");
+}
+
 // ─── Construção de argumentos bwrap ───────────────────────────
 
 /**
  * Constrói o array de argumentos base do bwrap.
  * Estes argumentos são comuns a todas as tools.
+ * Cache por config+cwd para evitar reconstrução a cada tool call.
  */
 export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
+  const key = getBwrapCacheKey(config, cwd);
+  const cached = bwrapArgsCache.get(key);
+  if (cached) return [...cached];
+
   const home = process.env.HOME || "/root";
   const args: string[] = [
     "--unshare-all",
@@ -259,10 +310,12 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     }
   }
 
-  // HOME isolado
+  // HOME isolado — cria diretório vazio no namespace
+  args.push("--dir", home);
   args.push("--setenv", "HOME", home);
   args.push("--setenv", "USER", process.env.USER || "root");
 
+  bwrapArgsCache.set(key, [...args]);
   return args;
 }
 
