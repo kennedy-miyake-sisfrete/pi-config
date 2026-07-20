@@ -95,7 +95,6 @@ export function createGrepTool(cwd: string) {
 
       // Constrói comando rg
       const rgArgs: string[] = [
-        "rg",
         "--no-heading",
         "--with-filename",
         "--line-number",
@@ -123,10 +122,11 @@ export function createGrepTool(cwd: string) {
         rgArgs.push("--glob", params.glob);
       }
 
-      // Limit total matches via head -n (rg --max-count is per-file)
+      // Limit via rg --max-count (applied per-file; head pipe not needed)
       const limit = typeof params.limit === "number" && params.limit > 0
         ? params.limit
         : DEFAULT_GREP_LIMIT;
+      rgArgs.push("--max-count", String(limit));
 
       // Pattern
       rgArgs.push("--", pattern);
@@ -137,22 +137,16 @@ export function createGrepTool(cwd: string) {
         : ".";
       rgArgs.push(searchPath);
 
-      // Executa via bwrap, pipe to head -n for total limit
+      // Executa rg diretamente via bwrap (sem bash -c, sem pipe)
       const { stdout, stderr, exitCode } = await execInSandbox(config, {
-        command: ["bash", "-c", `rg ${rgArgs.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(" ")} | head -n ${limit}`],
+        command: ["rg", ...rgArgs],
         cwd: searchCwd,
         signal,
       });
 
-      // rg exit code 1 = no matches, 0 = matches found, 2 = error
-      if (exitCode === 2 || (exitCode !== 0 && exitCode !== 1 && stderr)) {
+      // rg exit code: 0 = matches found, 1 = no matches, 2 = error
+      if (exitCode === 2 || (exitCode !== 0 && exitCode !== 1)) {
         const errText = stderr.trim() || `grep failed (exit code ${exitCode})`;
-        if (errText.includes("not found") || errText.includes("No such file")) {
-          return {
-            content: [{ type: "text", text: `Error: ripgrep (rg) not available in sandbox. ${errText}` }],
-            details: undefined,
-          };
-        }
         return {
           content: [{ type: "text", text: `Error: ${errText}` }],
           details: undefined,
