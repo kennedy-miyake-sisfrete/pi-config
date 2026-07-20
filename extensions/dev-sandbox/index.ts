@@ -197,11 +197,14 @@ export default function (pi: ExtensionAPI) {
       operations: undefined as any, // placeholder, será populado no execute
     });
 
-    pi.registerTool({
-      ...unifiedBashTool,
-      label: "bash (sandboxed)",
+    // try/catch defensivo: se bash extension registrou antes
+    // (ex: __dirname detection falhou), skip silenciosamente.
+    try {
+      pi.registerTool({
+        ...unifiedBashTool,
+        label: "bash (sandboxed)",
 
-      async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
+        async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
         if (!enabled || !config) {
           // Fallback: bash com sudo spawnHook, sem bwrap
           const fallback = createBashTool(localCwd, {
@@ -235,9 +238,13 @@ export default function (pi: ExtensionAPI) {
           if (hadSudo) {
             clearCurrentPassword();
           }
-        }
-      },
-    });
+          }
+        },
+      });
+    } catch (_err) {
+      // Bash extension já registrou — skip (não deve ocorrer,
+      // mas é seguro ter fallback defensivo)
+    }
   }
 
   // ── Cleanup sudo no fim da sessão ──────────────

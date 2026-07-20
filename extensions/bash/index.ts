@@ -10,8 +10,16 @@
  * Para adicionar nova extensão bash:
  *   1. Crie um arquivo .ts neste diretório
  *   2. Importe e registre no default export abaixo
+ *
+ * Integração com dev-sandbox:
+ *   Se dev-sandbox/ estiver presente no mesmo diretório de extensões,
+ *   esta extensão NÃO registra o tool bash — delega para dev-sandbox
+ *   que cria tool unificado com spawnHook (sudo) + operations (bwrap).
+ *   Se dev-sandbox NÃO estiver presente, registra normalmente.
  */
 
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
 import { containsSudo } from "./utils.ts";
@@ -31,17 +39,18 @@ export default function (pi: ExtensionAPI) {
 		spawnHook: createSudoAwareSpawnHook(),
 	});
 
-	// --- Override do bash tool ---
-	// try/catch: se dev-sandbox já registrou um bash tool unificado,
-	//            pula silenciosamente (evita conflito de nome duplicado).
-	try {
+	// Verifica se dev-sandbox está presente no diretório irmão
+	// __dirname = ~/.pi/agent/extensions/bash/
+	// extensionsDir = ~/.pi/agent/extensions/
+	const extensionsDir = dirname(__dirname);
+	const devSandboxDir = join(extensionsDir, "dev-sandbox");
+	const devSandboxPresent = existsSync(devSandboxDir);
+
+	if (!devSandboxPresent) {
+		// --- Override do bash tool (modo standalone) ---
 		pi.registerTool({
 			...bashTool,
 
-			// Envolve o execute original para:
-			// 1. Detectar sudo e pedir senha antes de executar
-			// 2. Senha é pedida toda vez (sem cache)
-			// 3. Senha removida após execução
 			execute: async (id, params, signal, onUpdate, ctx) => {
 				const hadSudo = containsSudo(params.command);
 
@@ -57,20 +66,17 @@ export default function (pi: ExtensionAPI) {
 				}
 
 				try {
-					// Delega para o bash tool (spawnHook transforma sudo → sudo -A)
 					return await bashTool.execute(id, params, signal, onUpdate);
 				} finally {
-					// Remove senha imediatamente após execução (nunca fica cacheada)
 					if (hadSudo) {
 						clearCurrentPassword();
 					}
 				}
 			},
 		});
-	} catch (_err) {
-		// Tool "bash" já registrado (ex: dev-sandbox) — bash extension opera
-		// como módulo passivo. O spawnHook e utils continuam importáveis.
 	}
+	// Se dev-sandbox presente: não registra. O spawnHook e utils
+	// são importados pelo dev-sandbox que cria tool unificado.
 
 	// --- Cleanup no fim da sessão ---
 	registerSudoCleanup(pi);
