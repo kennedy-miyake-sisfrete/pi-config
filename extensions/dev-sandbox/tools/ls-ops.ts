@@ -52,13 +52,13 @@ export function createLsOps(config: SandboxConfig, cwd: string): LsOperations {
     },
 
     async readdir(dirPath) {
-      // Usa find -print0 para suportar nomes com newline
+      // Usa find -printf '%f\0' para retornar só basename (sem caminho)
       const { stdout, exitCode } = await execInSandbox(config, {
         command: [
           "find", dirPath,
           "-maxdepth", "1",
           "-mindepth", "1",
-          "-print0",
+          "-printf", "%f\\0",
         ],
         cwd,
       });
