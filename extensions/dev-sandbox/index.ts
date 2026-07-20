@@ -7,7 +7,7 @@
  *   - Rede do host compartilhada (para LLM API, npm, git)
  *   - ~/.ssh montado read-only (git push/pull)
  *   - Cache npm/pip persistente em .sandbox-cache/
- *   - Filtro seccomp (deny-list de 20 syscalls perigosas)
+ *   - Filtro seccomp (deny-list de syscalls perigosas)
  *   - HOME isolado (sem acesso ao home real)
  *
  * Complementa security-guard.ts:
@@ -134,12 +134,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...createReadTool(localCwd),
     async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createReadTool(localCwd);
+        const fallback = createReadTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
-      const tool = createReadTool(localCwd, {
-        operations: createReadOps(config, localCwd),
+      const tool = createReadTool(cwd, {
+        operations: createReadOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -148,12 +149,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...createWriteTool(localCwd),
     async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createWriteTool(localCwd);
+        const fallback = createWriteTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
-      const tool = createWriteTool(localCwd, {
-        operations: createWriteOps(config, localCwd),
+      const tool = createWriteTool(cwd, {
+        operations: createWriteOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -162,12 +164,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...createEditTool(localCwd),
     async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createEditTool(localCwd);
+        const fallback = createEditTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
-      const tool = createEditTool(localCwd, {
-        operations: createEditOps(config, localCwd),
+      const tool = createEditTool(cwd, {
+        operations: createEditOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -179,13 +182,14 @@ export default function (pi: ExtensionAPI) {
     label: "bash (sandboxed)",
 
     async execute(id: string, params: any, signal: any, onUpdate: any, ctx: any) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createBashTool(localCwd);
+        const fallback = createBashTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
 
-      const tool = createBashTool(localCwd, {
-        operations: createBashOps(config, localCwd),
+      const tool = createBashTool(cwd, {
+        operations: createBashOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -194,12 +198,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...createFindTool(localCwd),
     async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createFindTool(localCwd);
+        const fallback = createFindTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
-      const tool = createFindTool(localCwd, {
-        operations: createFindOps(config, localCwd),
+      const tool = createFindTool(cwd, {
+        operations: createFindOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -208,12 +213,13 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     ...createLsTool(localCwd),
     async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
       if (!enabled || !config) {
-        const fallback = createLsTool(localCwd);
+        const fallback = createLsTool(cwd);
         return fallback.execute(id, params, signal, onUpdate);
       }
-      const tool = createLsTool(localCwd, {
-        operations: createLsOps(config, localCwd),
+      const tool = createLsTool(cwd, {
+        operations: createLsOps(config, cwd),
       });
       return tool.execute(id, params, signal, onUpdate);
     },
@@ -221,23 +227,30 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     ...createGrepTool(localCwd),
-    async execute(id, params, signal, onUpdate) {
-      const tool = createGrepTool(localCwd);
-      return tool.execute(id, params, signal, onUpdate);
+    async execute(id, params, signal, onUpdate, ctx) {
+      const cwd = ctx?.cwd ?? localCwd;
+      if (!enabled || !config) {
+        const fallback = createGrepTool(cwd);
+        return fallback.execute(id, params, signal, onUpdate, ctx);
+      }
+      const tool = createGrepTool(cwd);
+      return tool.execute(id, params, signal, onUpdate, ctx);
     },
   });
 
   // ── user_bash (!comando e !!comando) ──────────
-  pi.on("user_bash", (_event) => {
+  pi.on("user_bash", (_event, ctx) => {
     if (!enabled || !config) return;
-    return { operations: createBashOps(config, localCwd) };
+    const cwd = ctx?.cwd ?? localCwd;
+    return { operations: createBashOps(config, cwd) };
   });
 
   // ── before_agent_start ────────────────────────
-  pi.on("before_agent_start", (_event) => {
+  pi.on("before_agent_start", (_event, ctx) => {
     if (!enabled || !config) return;
+    const cwd = ctx?.cwd ?? localCwd;
     const sandboxNote = [
-      `Current working directory: ${localCwd}`,
+      `Current working directory: ${cwd}`,
       "(sandboxed — bubblewrap namespaces + seccomp)",
     ].join(" ");
     return { systemPrompt: sandboxNote };
@@ -261,7 +274,7 @@ export default function (pi: ExtensionAPI) {
         `Status: ativo`,
         `Workspace: ${localCwd}`,
         `Rede: ${config.internet.enabled ? "compartilhada com host" : "isolada"}`,
-        `Seccomp: ${config.seccomp.enabled ? "ativo (20 syscalls bloqueadas)" : "desabilitado"}`,
+        `Seccomp: ${config.seccomp.enabled ? "ativo (bloqueio de syscalls)" : "desabilitado"}`,
         `SSH: ${config.ssh.mountReadOnly ? "~/.ssh montado read-only" : "não montado"}`,
         `Cache npm: ${config.filesystem.cacheDirs.npm || "não configurado"}`,
         `Cache pip: ${config.filesystem.cacheDirs.pip || "não configurado"}`,
