@@ -15,6 +15,12 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { execInSandbox } from "../bwrap-executor";
 import type { SandboxConfig } from "../types";
 
+let _config: SandboxConfig | null = null;
+
+export function setGrepConfig(config: SandboxConfig): void {
+  _config = config;
+}
+
 interface GrepToolResult {
   content: Array<{ type: "text"; text: string }>;
   details: Record<string, unknown> | undefined;
@@ -22,7 +28,7 @@ interface GrepToolResult {
 
 const DEFAULT_GREP_LIMIT = 100;
 
-export function createGrepTool(config: SandboxConfig, cwd: string) {
+export function createGrepTool(cwd: string) {
   return {
     name: "grep",
     label: "Grep",
@@ -123,7 +129,14 @@ export function createGrepTool(config: SandboxConfig, cwd: string) {
       rgArgs.push(searchPath);
 
       // Executa via bwrap
-      const { stdout } = await execInSandbox(config, {
+      if (!_config) {
+        return {
+          content: [{ type: "text", text: "Error: sandbox not initialized" }],
+          details: undefined,
+        };
+      }
+
+      const { stdout } = await execInSandbox(_config, {
         command: rgArgs,
         cwd,
         signal,
