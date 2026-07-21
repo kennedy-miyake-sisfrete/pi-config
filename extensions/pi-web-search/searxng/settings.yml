@@ -10,7 +10,7 @@ search:
     - html
     - json
 server:
-  secret_key: "${SEARXNG_SECRET_KEY}"
+  secret_key: "ultrasecretkey"  # overridden by SEARXNG_SECRET env var
   limiter: false
   image_proxy: false
   method: "GET"
