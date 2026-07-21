@@ -15,6 +15,17 @@ Thumbs.db
 # Logs
 *.log
 
-# sandbox
+# Cache directories
 .sandbox-cache/
 .web-fetch-cache/
+.codegraph/
+
+# Cache files
+mcp-cache.json
+
+# Environment variables
+.env
+
+# Backup files
+*.bak
+*.backup
