@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "internet": {
+    "enabled": true
+  },
+  "filesystem": {
+    "extraWritable": [
+      "/run/user/1000/podman/podman.sock",
+      "/var/run/docker.sock"
+    ],
+    "extraReadonly": [],
+    "denyPaths": ["/sbin", "/usr/sbin", "/root"],
+    "cacheDirs": {
+      "npm": "",
+      "pip": ""
+    }
+  },
+  "ssh": {
+    "mountReadOnly": true
+  }
+}
