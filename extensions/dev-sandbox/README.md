@@ -137,3 +137,64 @@ Adicione ao `.gitignore`:
 - `/tmp` é efêmero entre comandos (use `$PWD` para persistência)
 - `npm install` com scripts de lifecycle executa dentro do sandbox
   (seguro porque home real inacessível)
+
+## Capabilities
+
+Por padrão, 18 Linux capabilities são removidas do sandbox. As únicas
+mantidas são `CAP_SYS_NICE` (nice/renice) e `CAP_SYS_RESOURCE` (setrlimit).
+
+### Por que?
+
+Capabilities são a **segunda camada de defesa** contra kernel exploits.
+Se um bug no kernel permitir escapar do namespace bwrap, o atacante
+ainda precisaria de capabilities que o sandbox removeu.
+
+```
+Namespaces → "o que o processo vê"
+Capabilities → "o que o processo pode fazer"
+```
+
+### Capabilities removidas
+
+| Capability | Motivo |
+|---|---|
+| `CAP_SYS_ADMIN` | mount, ioctl — o bwrap já montou tudo |
+| `CAP_SYS_MODULE` | carregar módulos de kernel — nunca necessário |
+| `CAP_SYS_RAWIO` | acesso direto a hardware |
+| `CAP_SYS_BOOT` | reboot, kexec |
+| `CAP_SYSLOG` | ler kernel ring buffer (dmesg) |
+| `CAP_BPF` | carregar eBPF — vetor frequente de 0-days |
+| `CAP_PERFMON` | perf_event_open — amostragem de performance |
+| `CAP_SYS_PTRACE` | ptrace — debugar qualquer processo |
+| `CAP_NET_ADMIN` | configurar rede, firewall |
+| `CAP_NET_RAW` | sockets raw |
+| `CAP_NET_BIND_SERVICE` | bind em portas <1024 |
+| `CAP_MKNOD` | criar device nodes |
+| `CAP_SYS_CHROOT` | chroot (bwrap já provê) |
+| `CAP_DAC_OVERRIDE` | ignorar permissões de arquivo |
+| `CAP_FOWNER` | chmod/chown em arquivos de outros |
+| `CAP_FSETID` | manter bits SUID/SGID |
+| `CAP_SETUID` / `CAP_SETGID` | trocar de usuário |
+
+### Como reabilitar uma capability
+
+No `.pi/sandbox.json` do projeto, remova a capability da lista `drop`:
+
+```json
+{
+  "capabilities": {
+    "drop": [
+      "CAP_SYS_ADMIN",
+      "CAP_SYS_MODULE",
+      ...
+      // remova CAP_SYS_PTRACE para usar gdb/strace
+      // remova CAP_NET_BIND_SERVICE para bind em porta 80
+    ]
+  }
+}
+```
+
+> ⚠️ **Cenários que precisam de capabilities extras:**
+> - `gdb`, `strace`, `rr` dentro do sandbox → remova `CAP_SYS_PTRACE`
+> - Dev server na porta 80 ou 443 → remova `CAP_NET_BIND_SERVICE`
+> - `docker` com `--privileged` → não funciona no sandbox por design

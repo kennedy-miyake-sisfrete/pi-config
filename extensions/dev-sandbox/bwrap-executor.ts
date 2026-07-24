@@ -54,6 +54,7 @@ function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
     config.filesystem.denyPaths.join(","),
     config.filesystem.extraWritable.join(","),
     config.filesystem.extraReadonly.join(","),
+    config.capabilities.drop.join(","),
   ];
   return parts.join("|");
 }
@@ -223,6 +224,15 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     if (existsSync(p)) {
       args.push("--ro-bind", p, p);
     }
+  }
+
+  // ── Capabilities ──────────────────────────────
+  // Remove capabilities perigosas. São mantidas apenas:
+  //   CAP_SYS_NICE  — nice/renice (ex: nice make)
+  //   CAP_SYS_RESOURCE — setrlimit (ex: ulimit -n)
+  // O agente não precisa de nenhuma outra.
+  for (const cap of config.capabilities.drop) {
+    args.push("--cap-drop", cap);
   }
 
   // ── Isolamento de ambiente ────────────────────
