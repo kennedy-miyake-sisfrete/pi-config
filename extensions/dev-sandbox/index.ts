@@ -254,14 +254,13 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── before_agent_start ────────────────────────
-  pi.on("before_agent_start", (_event, ctx) => {
+  pi.on("before_agent_start", (event, ctx) => {
     if (!enabled || !config) return;
     const cwd = ctx?.cwd ?? localCwd;
-    const sandboxNote = [
-      `Current working directory: ${cwd}`,
-      "(sandboxed — bubblewrap namespaces)",
-    ].join(" ");
-    return { systemPrompt: sandboxNote };
+    const sandboxNote = `Current working directory: ${cwd} (sandboxed — bubblewrap namespaces)`;
+    // Concatena ao system prompt existente em vez de substituí-lo,
+    // preservando o conteúdo injetado por outras extensões (ex: agent-type).
+    return { systemPrompt: `${event.systemPrompt}\n\n${sandboxNote}` };
   });
 
   // ── /sandbox command ──────────────────────────
