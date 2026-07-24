@@ -115,6 +115,16 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
         args.push("--dir", sockDir);
         // Monta o socket read-write (necessário para comunicação bidirecional)
         args.push("--bind", sockPath, sockPath);
+
+        // Se o path original difere do resolvido (ex: é um symlink),
+        // recria o symlink no sandbox para que o ssh-client encontre
+        // o socket no caminho que espera
+        if (sockPath !== sshAuthSock) {
+          const origDir = dirname(sshAuthSock);
+          args.push("--dir", origDir);
+          args.push("--symlink", sockPath, sshAuthSock);
+        }
+
         // Define SSH_AUTH_SOCK para o path original (o que o ssh-client espera)
         args.push("--setenv", "SSH_AUTH_SOCK", sshAuthSock);
       }
