@@ -4,10 +4,7 @@
     "enabled": true
   },
   "filesystem": {
-    "extraWritable": [
-      "/run/user/1000/podman/podman.sock",
-      "/var/run/docker.sock"
-    ],
+    "extraWritable": [],
     "extraReadonly": [],
     "denyPaths": ["/sbin", "/usr/sbin", "/root"],
     "cacheDirs": {

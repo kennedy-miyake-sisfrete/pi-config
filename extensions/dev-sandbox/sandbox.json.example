@@ -3,10 +3,9 @@
   "internet": {
     "enabled": true
   },
+  "_warning_docker_sock": "NUNCA monte /var/run/docker.sock a menos que você entenda o risco: qualquer processo no sandbox pode usar o socket para ganhar acesso root ao host (ex: docker run -v /:/host --privileged).",
   "filesystem": {
-    "extraWritable": [
-      "/var/run/docker.sock"
-    ],
+    "extraWritable": [],
     "extraReadonly": [
       "/mnt/dados"
     ],
