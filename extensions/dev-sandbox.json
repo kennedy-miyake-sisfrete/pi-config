@@ -16,6 +16,6 @@
     }
   },
   "ssh": {
-    "mountReadOnly": true
+    "mode": "agent"
   }
 }
