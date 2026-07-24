@@ -10,9 +10,12 @@ sudo apt install bubblewrap
 
 # A extensão já está em ~/.pi/agent/extensions/dev-sandbox/
 # Carregue normalmente ao iniciar o pi.
+
+# Rust NÃO é necessário para uso — o seccomp.bpf já está compilado.
+# Só instale Rust se quiser customizar a lista de syscalls bloqueadas.
 ```
 
-## Arquitetura de Proteção (2 camadas)
+## Arquitetura de Proteção (3 camadas)
 
 ```
 ┌─────────────────────────────────┐
@@ -20,8 +23,10 @@ sudo apt install bubblewrap
 │  Pattern matching de comandos   │   Bloqueia padrões perigosos
 │  Verificação de paths sensíveis │   Pede confirmação ao usuário
 ├─────────────────────────────────┤
-│ dev-sandbox (NOVO)              │ ← Hard boundary
-│  bwrap: namespaces do kernel    │   Filesystem isolado
+│ dev-sandbox                     │ ← Hard boundary (kernel)
+│  Namespaces (bwrap)             │   Filesystem isolado
+│  Capabilities (--cap-drop ×18)  │   Poderes de root removidos
+│  Seccomp (BPF ×33 syscalls)     │   Syscalls perigosas bloqueadas
 └─────────────────────────────────┘
 ```
 
