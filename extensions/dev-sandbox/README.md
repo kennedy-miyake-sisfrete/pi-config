@@ -198,3 +198,62 @@ No `.pi/sandbox.json` do projeto, remova a capability da lista `drop`:
 > - `gdb`, `strace`, `rr` dentro do sandbox → remova `CAP_SYS_PTRACE`
 > - Dev server na porta 80 ou 443 → remova `CAP_NET_BIND_SERVICE`
 > - `docker` com `--privileged` → não funciona no sandbox por design
+
+## Seccomp
+
+Por padrão, 33 syscalls perigosas são bloqueadas via filtro seccomp BPF.
+
+### Por que?
+
+Seccomp é a **terceira camada de defesa**: ele filtra syscalls diretamente
+no kernel, antes mesmo de serem executadas. Se um bug no kernel permitir
+escapar dos namespaces **e** das capabilities, o atacante ainda enfrenta
+o filtro seccomp.
+
+```
+Namespaces   → "o que o processo vê"
+Capabilities → "o que o processo pode fazer"
+Seccomp      → "quais syscalls o kernel processa"
+```
+
+### Syscalls bloqueadas
+
+O filtro é **default-allow**: tudo é permitido exceto as 33 syscalls
+listadas. Nenhuma delas é necessária para operações normais do agente.
+
+| Categoria | Syscalls |
+|---|---|
+| eBPF / tracing | `bpf`, `perf_event_open` |
+| Debug / escape | `ptrace`, `process_vm_readv`, `process_vm_writev` |
+| Kernel modules | `init_module`, `finit_module`, `delete_module` |
+| Boot / kexec | `kexec_load`, `kexec_file_load`, `reboot` |
+| Filesystem | `mount`, `umount2`, `pivot_root`, `swapon`, `swapoff` |
+| Hardware | `iopl`, `ioperm` |
+| Clock / hostname | `settimeofday`, `clock_settime`, `adjtimex`, `setdomainname`, `sethostname` |
+| Kernel keyring | `add_key`, `keyctl` |
+| Outros | `userfaultfd`, `kcmp`, `lookup_dcookie`, `_sysctl`, `vhangup`, `uselib`, `acct`, `modify_ldt` |
+
+### Como reabilitar uma syscall
+
+Edite o fonte Rust em `gen-seccomp/src/main.rs`, remova a syscall do
+array `DEFAULT_BLOCKED`, recompile e regere o BPF:
+
+```bash
+cd extensions/dev-sandbox/gen-seccomp
+cargo build --release
+./target/release/gen-seccomp > ../seccomp.bpf
+```
+
+### Desabilitar completamente
+
+No `.pi/sandbox.json` do projeto:
+
+```json
+{
+  "seccomp": { "enabled": false }
+}
+```
+
+> ⚠️ Se o arquivo `seccomp.bpf` não for encontrado, o sandbox opera
+> normalmente em modo degradado (sem seccomp). Nenhuma funcionalidade
+> do agente é afetada.

@@ -6,14 +6,37 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync, openSync, closeSync } from "node:fs";
 import type { BashOperations } from "@earendil-works/pi-coding-agent";
 import type { SandboxConfig } from "../types";
 import { buildBwrapArgs, killGroup } from "../bwrap-executor";
+
+/**
+ * Abre o arquivo BPF se seccomp estiver habilitado.
+ * Retorna o fd ou undefined (degradação segura).
+ */
+function openSeccompFd(config: SandboxConfig): number | undefined {
+  const cfg = config.seccomp;
+  if (!cfg?.enabled || !cfg.bpfPath || !existsSync(cfg.bpfPath)) {
+    return undefined;
+  }
+  try {
+    return openSync(cfg.bpfPath, "r");
+  } catch {
+    return undefined;
+  }
+}
 
 export function createBashOps(config: SandboxConfig, cwd: string): BashOperations {
   return {
     async exec(command, cmdCwd, { onData, signal, timeout, env }) {
       const args = buildBwrapArgs(config, cwd);
+
+      // ── Seccomp BPF ────────────────────────
+      const bpfFd = openSeccompFd(config);
+      if (bpfFd !== undefined) {
+        args.push("--seccomp", "3");
+      }
 
       // Variáveis de ambiente customizadas
       if (env) {
@@ -28,14 +51,24 @@ export function createBashOps(config: SandboxConfig, cwd: string): BashOperation
       args.push("bash", "-lc", command);
 
       return new Promise((resolve, reject) => {
+        // stdio: stdin, stdout, stderr + opcionalmente FD 3 (BPF)
+        const stdio: any[] = ["ignore", "pipe", "pipe"];
+        if (bpfFd !== undefined) {
+          stdio.push(bpfFd);
+        }
+
         const child = spawn("bwrap", args, {
           cwd: cmdCwd,
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio,
           detached: true,
-          // Env mínimo para o binário bwrap — as vars do sandbox são
-          // controladas por --clearenv + --setenv nos args acima
+          // Env mínimo para o binário bwrap
           env: { PATH: process.env.PATH || "" },
         });
+
+        // Fecha cópia do pai após fork
+        if (bpfFd !== undefined) {
+          closeSync(bpfFd);
+        }
 
         // Streaming de stdout
         child.stdout!.on("data", (chunk: Buffer) => {

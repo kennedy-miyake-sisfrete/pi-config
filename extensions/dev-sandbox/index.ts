@@ -36,6 +36,9 @@ import {
   createLsTool,
   createGrepTool as createGrepToolSdk,
 } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadConfig, isBwrapAvailable } from "./config";
 import type { SandboxConfig } from "./types";
 import { createBashOps } from "./tools/bash-ops";
@@ -45,6 +48,9 @@ import { createEditOps } from "./tools/edit-ops";
 import { createFindOps } from "./tools/find-ops";
 import { createLsOps } from "./tools/ls-ops";
 import { createGrepTool, setGrepConfig } from "./tools/grep";
+
+/** Diretório desta extensão — usado para resolver seccomp.bpf. */
+const EXT_DIR = dirname(fileURLToPath(import.meta.url));
 
 
 
@@ -95,6 +101,23 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return;
+    }
+
+    // ── Seccomp BPF ───────────────────────────
+    // Resolve caminho do BPF se não configurado explicitamente
+    if (!config.seccomp.bpfPath) {
+      config.seccomp.bpfPath = join(EXT_DIR, "seccomp.bpf");
+    }
+    if (config.seccomp.enabled && !existsSync(config.seccomp.bpfPath)) {
+      if (ctx.hasUI) {
+        ctx.ui.notify(
+          `Filtro seccomp não encontrado em ${config.seccomp.bpfPath}.\n` +
+          "Execute 'gen-seccomp > seccomp.bpf' na extensão para gerar.\n" +
+          "Sandbox continuará sem seccomp (modo degradado).",
+          "warning",
+        );
+      }
+      config.seccomp.enabled = false;
     }
 
     enabled = true;
@@ -262,6 +285,8 @@ export default function (pi: ExtensionAPI) {
         `SSH: ${config.ssh.mode === "agent" ? "ssh-agent socket" : config.ssh.mode === "mount" ? "~/.ssh montado read-only" : "não montado"}`,
         `Cache npm: ${config.filesystem.cacheDirs.npm || "não configurado"}`,
         `Cache pip: ${config.filesystem.cacheDirs.pip || "não configurado"}`,
+        `Seccomp: ${config.seccomp.enabled ? "ativo (" + config.seccomp.bpfPath + ")" : "desabilitado"}`,
+        `Capabilities: ${config.capabilities.drop.length} droppadas`,
       ];
 
       ctx.ui.notify(lines.join("\n"), "info");

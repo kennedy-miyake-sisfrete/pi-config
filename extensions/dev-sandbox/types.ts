@@ -57,6 +57,13 @@ export interface SandboxCapabilitiesConfig {
   drop: string[];
 }
 
+export interface SandboxSeccompConfig {
+  /** Habilita/desabilita o filtro seccomp. */
+  enabled: boolean;
+  /** Caminho para o arquivo BPF compilado. */
+  bpfPath: string;
+}
+
 export interface SandboxConfig {
   /** Habilita/desabilita todo o sandbox. */
   enabled: boolean;
@@ -68,6 +75,8 @@ export interface SandboxConfig {
   ssh: SandboxSshConfig;
   /** Configuração de capabilities Linux. */
   capabilities: SandboxCapabilitiesConfig;
+  /** Configuração do filtro seccomp. */
+  seccomp: SandboxSeccompConfig;
 }
 
 /** Opções para uma chamada bwrap. */
@@ -137,5 +146,10 @@ export const DEFAULT_CONFIG: SandboxConfig = {
       "CAP_SETUID",          // setuid
       "CAP_SETGID",          // setgid
     ],
+  },
+  seccomp: {
+    enabled: true,
+    // Resolvido em runtime para <extension-dir>/seccomp.bpf
+    bpfPath: "",
   },
 };

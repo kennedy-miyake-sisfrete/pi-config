@@ -46,5 +46,10 @@
       "CAP_SETUID",
       "CAP_SETGID"
     ]
+  },
+  "seccomp": {
+    "_doc": "Filtro seccomp: bloqueia syscalls perigosas no kernel. Use gen-seccomp (Rust) para gerar o .bpf.",
+    "enabled": true,
+    "bpfPath": ""
   }
 }
