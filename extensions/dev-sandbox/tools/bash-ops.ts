@@ -32,7 +32,9 @@ export function createBashOps(config: SandboxConfig, cwd: string): BashOperation
           cwd: cmdCwd,
           stdio: ["ignore", "pipe", "pipe"],
           detached: true,
-          env: { ...process.env },
+          // Env mínimo para o binário bwrap — as vars do sandbox são
+          // controladas por --clearenv + --setenv nos args acima
+          env: { PATH: process.env.PATH || "" },
         });
 
         // Streaming de stdout
