@@ -63,6 +63,20 @@ function resolveCacheDirs(cwd: string): SandboxCacheDirs {
 }
 
 /**
+ * Converte formato antigo (mountReadOnly) para o novo (mode).
+ * Retorna uma cópia do objeto com a conversão aplicada.
+ */
+function normalizeSshConfig(raw: Record<string, unknown>): Record<string, unknown> {
+  if (raw.mountReadOnly !== undefined && raw.mode === undefined) {
+    const copy = { ...raw };
+    copy.mode = raw.mountReadOnly ? "mount" : "none";
+    delete copy.mountReadOnly;
+    return copy;
+  }
+  return raw;
+}
+
+/**
  * Carrega configuração completa com merge de defaults, global e projeto.
  */
 export function loadConfig(cwd: string): SandboxConfig {
@@ -77,11 +91,23 @@ export function loadConfig(cwd: string): SandboxConfig {
 
   const globalOverlay = safeReadJson(globalPath);
   if (globalOverlay) {
+    // Normaliza formato antigo → novo antes do merge
+    if (globalOverlay.ssh) {
+      (globalOverlay as Record<string, unknown>).ssh = normalizeSshConfig(
+        globalOverlay.ssh as Record<string, unknown>,
+      );
+    }
     config = deepMerge(config, globalOverlay);
   }
 
   const projectOverlay = safeReadJson(projectPath);
   if (projectOverlay) {
+    // Normaliza formato antigo → novo antes do merge
+    if (projectOverlay.ssh) {
+      (projectOverlay as Record<string, unknown>).ssh = normalizeSshConfig(
+        projectOverlay.ssh as Record<string, unknown>,
+      );
+    }
     config = deepMerge(config, projectOverlay);
   }
 

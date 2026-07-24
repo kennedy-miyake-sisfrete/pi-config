@@ -8,8 +8,8 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
 // ─── Cache de argumentos bwrap ──────────────────────────────
@@ -20,7 +20,7 @@ function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
   const parts = [
     cwd,
     String(config.internet.enabled),
-    String(config.ssh.mountReadOnly),
+    config.ssh.mode,
     config.filesystem.cacheDirs.npm,
     config.filesystem.cacheDirs.pip,
     config.filesystem.denyPaths.join(","),
@@ -92,13 +92,59 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     args.push("--share-net");
   }
 
-  // SSH (~/.ssh read-only)
-  if (config.ssh.mountReadOnly) {
+  // SSH — modo agent / mount / none
+  if (config.ssh.mode === "agent") {
+    // ── SSH Agent Socket ──────────────────────────
+    // As chaves privadas NUNCA entram no sandbox.
+    // Apenas o socket do ssh-agent é montado para solicitar assinaturas.
+    const sshAuthSock = process.env.SSH_AUTH_SOCK;
+
+    if (sshAuthSock) {
+      // O socket pode ser um path real ou um symlink (ex: /tmp/ssh-XXXX/agent.XXX)
+      // Resolvemos o path real para garantir que o bind funcione corretamente
+      let sockPath = sshAuthSock;
+      try {
+        sockPath = realpathSync(sshAuthSock);
+      } catch {
+        // Se não conseguir resolver, usa o valor original
+      }
+
+      if (existsSync(sockPath)) {
+        const sockDir = dirname(sockPath);
+        // Cria o diretório pai do socket dentro do sandbox
+        args.push("--dir", sockDir);
+        // Monta o socket read-write (necessário para comunicação bidirecional)
+        args.push("--bind", sockPath, sockPath);
+        // Define SSH_AUTH_SOCK para o path original (o que o ssh-client espera)
+        args.push("--setenv", "SSH_AUTH_SOCK", sshAuthSock);
+      }
+    }
+
+    // ── known_hosts (verificação de host key) ────
+    const knownHosts = join(home, ".ssh", "known_hosts");
+    if (existsSync(knownHosts)) {
+      args.push("--dir", join(home, ".ssh"));
+      args.push("--ro-bind", knownHosts, knownHosts);
+    }
+
+    // ── .ssh/config (opcional, ex: ProxyCommand) ──
+    const sshConfig = join(home, ".ssh", "config");
+    if (existsSync(sshConfig)) {
+      // Garante que ~/.ssh existe (pode já ter sido criado acima)
+      const sshDir = join(home, ".ssh");
+      if (!existsSync(knownHosts)) {
+        args.push("--dir", sshDir);
+      }
+      args.push("--ro-bind", sshConfig, sshConfig);
+    }
+  } else if (config.ssh.mode === "mount") {
+    // Comportamento legado: monta ~/.ssh inteiro read-only
     const sshDir = join(home, ".ssh");
     if (existsSync(sshDir)) {
       args.push("--ro-bind", sshDir, sshDir);
     }
   }
+  // mode === "none": nada é montado
 
   // Cache persistente (npm, pip)
   const npmDir = config.filesystem.cacheDirs.npm;

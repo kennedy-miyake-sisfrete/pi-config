@@ -44,22 +44,36 @@ sudo apt install bubblewrap
 Montado read-only:
   /usr, /bin, /lib, /lib64       → sistema de desenvolvimento
   /etc/resolv.conf, hosts, …      → rede e usuários
-  ~/.ssh                          → chaves SSH (sem acesso direto aos arquivos)
+  ~/.ssh/known_hosts              → verificação de host key (modo agent)
+  ~/.ssh/config                   → configuração SSH (modo agent)
 
 Montado read-write:
   $PWD                            → diretório do projeto
   .sandbox-cache/npm, pip         → cache persistente
+  $SSH_AUTH_SOCK (socket)         → ssh-agent socket (modo agent)
 
 Montado vazio (tmpfs):
   /sbin, /usr/sbin, /root         → ferramentas de sistema bloqueadas
 
 NÃO montado:
   ~ (home real)                   → sem .aws, .gnupg, .bash_history
+  ~/.ssh (chaves privadas)        → nunca expostas no modo agent
   /etc (completo)                 → sem shadow, sudoers, pam.d
   Dispositivos de bloco           → sem /dev/sda
 ```
 
 ## Configuração
+
+### Modos SSH
+
+| Modo | Descrição | Segurança |
+|---|---|---|
+| `"agent"` | Usa `ssh-agent` socket (`$SSH_AUTH_SOCK`). Chaves privadas nunca entram no sandbox. | 🔒 Alta |
+| `"mount"` | Monta `~/.ssh` inteiro read-only (legado). | ⚠️ Baixa |
+| `"none"` | Sem acesso SSH. | 🔒 Máxima |
+
+> **Pré-requisito para modo `agent`**: o `ssh-agent` deve estar rodando no host
+> com as chaves carregadas (`ssh-add -l` para verificar).
 
 ### Global (`~/.pi/agent/extensions/dev-sandbox.json`)
 
@@ -73,7 +87,7 @@ NÃO montado:
     "denyPaths": ["/sbin", "/usr/sbin", "/root"],
     "cacheDirs": { "npm": "", "pip": "" }
   },
-  "ssh": { "mountReadOnly": true }
+  "ssh": { "mode": "agent" }
 }
 ```
 
@@ -89,7 +103,7 @@ Exemplo: `/meu-projeto/.pi/sandbox.json`
   "filesystem": {
     "extraWritable": ["/var/run/docker.sock"]
   },
-  "ssh": { "mountReadOnly": false }
+  "ssh": { "mode": "none" }
 }
 ```
 

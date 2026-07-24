@@ -259,7 +259,7 @@ export default function (pi: ExtensionAPI) {
         `Status: ativo`,
         `Workspace: ${localCwd}`,
         `Rede: ${config.internet.enabled ? "compartilhada com host" : "isolada"}`,
-        `SSH: ${config.ssh.mountReadOnly ? "~/.ssh montado read-only" : "não montado"}`,
+        `SSH: ${config.ssh.mode === "agent" ? "ssh-agent socket" : config.ssh.mode === "mount" ? "~/.ssh montado read-only" : "não montado"}`,
         `Cache npm: ${config.filesystem.cacheDirs.npm || "não configurado"}`,
         `Cache pip: ${config.filesystem.cacheDirs.pip || "não configurado"}`,
       ];

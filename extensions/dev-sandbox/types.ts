@@ -25,9 +25,21 @@ export interface SandboxInternetConfig {
   enabled: boolean;
 }
 
+/** Modo de acesso SSH dentro do sandbox. */
+export type SshMode = "agent" | "mount" | "none";
+
 export interface SandboxSshConfig {
-  /** Monta ~/.ssh read-only no namespace. */
-  mountReadOnly: boolean;
+  /**
+   * Modo de acesso SSH:
+   *   - "agent": usa SSH agent socket ($SSH_AUTH_SOCK) — as chaves
+   *     privadas nunca entram no sandbox; apenas o socket do agente
+   *     é montado para solicitar assinaturas. known_hosts e config
+   *     do host são montados read-only para manter a verificação.
+   *   - "mount": monta ~/.ssh inteiro read-only (comportamento legado).
+   *     As chaves privadas ficam acessíveis ao sandbox.
+   *   - "none": nenhum acesso SSH.
+   */
+  mode: SshMode;
 }
 
 export interface SandboxConfig {
@@ -80,6 +92,6 @@ export const DEFAULT_CONFIG: SandboxConfig = {
     },
   },
   ssh: {
-    mountReadOnly: true,
+    mode: "agent",
   },
 };
