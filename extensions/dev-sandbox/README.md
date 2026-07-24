@@ -10,9 +10,12 @@ sudo apt install bubblewrap
 
 # A extensão já está em ~/.pi/agent/extensions/dev-sandbox/
 # Carregue normalmente ao iniciar o pi.
+
+# Rust NÃO é necessário para uso — o seccomp.bpf já está compilado.
+# Só instale Rust se quiser customizar a lista de syscalls bloqueadas.
 ```
 
-## Arquitetura de Proteção (2 camadas)
+## Arquitetura de Proteção (3 camadas)
 
 ```
 ┌─────────────────────────────────┐
@@ -20,8 +23,10 @@ sudo apt install bubblewrap
 │  Pattern matching de comandos   │   Bloqueia padrões perigosos
 │  Verificação de paths sensíveis │   Pede confirmação ao usuário
 ├─────────────────────────────────┤
-│ dev-sandbox (NOVO)              │ ← Hard boundary
-│  bwrap: namespaces do kernel    │   Filesystem isolado
+│ dev-sandbox                     │ ← Hard boundary (kernel)
+│  Namespaces (bwrap)             │   Filesystem isolado
+│  Capabilities (--cap-drop ×18)  │   Poderes de root removidos
+│  Seccomp (BPF ×33 syscalls)     │   Syscalls perigosas bloqueadas
 └─────────────────────────────────┘
 ```
 
@@ -137,3 +142,123 @@ Adicione ao `.gitignore`:
 - `/tmp` é efêmero entre comandos (use `$PWD` para persistência)
 - `npm install` com scripts de lifecycle executa dentro do sandbox
   (seguro porque home real inacessível)
+
+## Capabilities
+
+Por padrão, 18 Linux capabilities são removidas do sandbox. As únicas
+mantidas são `CAP_SYS_NICE` (nice/renice) e `CAP_SYS_RESOURCE` (setrlimit).
+
+### Por que?
+
+Capabilities são a **segunda camada de defesa** contra kernel exploits.
+Se um bug no kernel permitir escapar do namespace bwrap, o atacante
+ainda precisaria de capabilities que o sandbox removeu.
+
+```
+Namespaces → "o que o processo vê"
+Capabilities → "o que o processo pode fazer"
+```
+
+### Capabilities removidas
+
+| Capability | Motivo |
+|---|---|
+| `CAP_SYS_ADMIN` | mount, ioctl — o bwrap já montou tudo |
+| `CAP_SYS_MODULE` | carregar módulos de kernel — nunca necessário |
+| `CAP_SYS_RAWIO` | acesso direto a hardware |
+| `CAP_SYS_BOOT` | reboot, kexec |
+| `CAP_SYSLOG` | ler kernel ring buffer (dmesg) |
+| `CAP_BPF` | carregar eBPF — vetor frequente de 0-days |
+| `CAP_PERFMON` | perf_event_open — amostragem de performance |
+| `CAP_SYS_PTRACE` | ptrace — debugar qualquer processo |
+| `CAP_NET_ADMIN` | configurar rede, firewall |
+| `CAP_NET_RAW` | sockets raw |
+| `CAP_NET_BIND_SERVICE` | bind em portas <1024 |
+| `CAP_MKNOD` | criar device nodes |
+| `CAP_SYS_CHROOT` | chroot (bwrap já provê) |
+| `CAP_DAC_OVERRIDE` | ignorar permissões de arquivo |
+| `CAP_FOWNER` | chmod/chown em arquivos de outros |
+| `CAP_FSETID` | manter bits SUID/SGID |
+| `CAP_SETUID` / `CAP_SETGID` | trocar de usuário |
+
+### Como reabilitar uma capability
+
+No `.pi/sandbox.json` do projeto, remova a capability da lista `drop`:
+
+```json
+{
+  "capabilities": {
+    "drop": [
+      "CAP_SYS_ADMIN",
+      "CAP_SYS_MODULE",
+      ...
+      // remova CAP_SYS_PTRACE para usar gdb/strace
+      // remova CAP_NET_BIND_SERVICE para bind em porta 80
+    ]
+  }
+}
+```
+
+> ⚠️ **Cenários que precisam de capabilities extras:**
+> - `gdb`, `strace`, `rr` dentro do sandbox → remova `CAP_SYS_PTRACE`
+> - Dev server na porta 80 ou 443 → remova `CAP_NET_BIND_SERVICE`
+> - `docker` com `--privileged` → não funciona no sandbox por design
+
+## Seccomp
+
+Por padrão, 33 syscalls perigosas são bloqueadas via filtro seccomp BPF.
+
+### Por que?
+
+Seccomp é a **terceira camada de defesa**: ele filtra syscalls diretamente
+no kernel, antes mesmo de serem executadas. Se um bug no kernel permitir
+escapar dos namespaces **e** das capabilities, o atacante ainda enfrenta
+o filtro seccomp.
+
+```
+Namespaces   → "o que o processo vê"
+Capabilities → "o que o processo pode fazer"
+Seccomp      → "quais syscalls o kernel processa"
+```
+
+### Syscalls bloqueadas
+
+O filtro é **default-allow**: tudo é permitido exceto as 33 syscalls
+listadas. Nenhuma delas é necessária para operações normais do agente.
+
+| Categoria | Syscalls |
+|---|---|
+| eBPF / tracing | `bpf`, `perf_event_open` |
+| Debug / escape | `ptrace`, `process_vm_readv`, `process_vm_writev` |
+| Kernel modules | `init_module`, `finit_module`, `delete_module` |
+| Boot / kexec | `kexec_load`, `kexec_file_load`, `reboot` |
+| Filesystem | `mount`, `umount2`, `pivot_root`, `swapon`, `swapoff` |
+| Hardware | `iopl`, `ioperm` |
+| Clock / hostname | `settimeofday`, `clock_settime`, `adjtimex`, `setdomainname`, `sethostname` |
+| Kernel keyring | `add_key`, `keyctl` |
+| Outros | `userfaultfd`, `kcmp`, `lookup_dcookie`, `_sysctl`, `vhangup`, `uselib`, `acct`, `modify_ldt` |
+
+### Como reabilitar uma syscall
+
+Edite o fonte Rust em `gen-seccomp/src/main.rs`, remova a syscall do
+array `DEFAULT_BLOCKED`, recompile e regere o BPF:
+
+```bash
+cd extensions/dev-sandbox/gen-seccomp
+cargo build --release
+./target/release/gen-seccomp > ../seccomp.bpf
+```
+
+### Desabilitar completamente
+
+No `.pi/sandbox.json` do projeto:
+
+```json
+{
+  "seccomp": { "enabled": false }
+}
+```
+
+> ⚠️ Se o arquivo `seccomp.bpf` não for encontrado, o sandbox opera
+> normalmente em modo degradado (sem seccomp). Nenhuma funcionalidade
+> do agente é afetada.

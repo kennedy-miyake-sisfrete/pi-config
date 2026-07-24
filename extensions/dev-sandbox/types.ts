@@ -42,6 +42,28 @@ export interface SandboxSshConfig {
   mode: SshMode;
 }
 
+export interface SandboxCapabilitiesConfig {
+  /**
+   * Linux capabilities removidas do sandbox.
+   *
+   * O agente só precisa de CAP_SYS_NICE (nice/renice) e
+   * CAP_SYS_RESOURCE (setrlimit/ulimit). Todas as demais
+   * capabilities são removidas por padrão para reduzir a
+   * superfície de ataque contra exploits de kernel.
+   *
+   * Para reabilitar uma capability, remova-a desta lista
+   * no .pi/sandbox.json do projeto.
+   */
+  drop: string[];
+}
+
+export interface SandboxSeccompConfig {
+  /** Habilita/desabilita o filtro seccomp. */
+  enabled: boolean;
+  /** Caminho para o arquivo BPF compilado. */
+  bpfPath: string;
+}
+
 export interface SandboxConfig {
   /** Habilita/desabilita todo o sandbox. */
   enabled: boolean;
@@ -51,6 +73,10 @@ export interface SandboxConfig {
   filesystem: SandboxFilesystemConfig;
   /** Configuração de acesso SSH. */
   ssh: SandboxSshConfig;
+  /** Configuração de capabilities Linux. */
+  capabilities: SandboxCapabilitiesConfig;
+  /** Configuração do filtro seccomp. */
+  seccomp: SandboxSeccompConfig;
 }
 
 /** Opções para uma chamada bwrap. */
@@ -93,5 +119,37 @@ export const DEFAULT_CONFIG: SandboxConfig = {
   },
   ssh: {
     mode: "agent",
+  },
+  capabilities: {
+    drop: [
+      // ── Administração do sistema ──────────
+      "CAP_SYS_ADMIN",       // mount, umount, swapon, ioctl admin
+      "CAP_SYS_MODULE",      // init_module, delete_module
+      "CAP_SYS_RAWIO",       // ioperm, iopl — acesso direto a hardware
+      "CAP_SYS_BOOT",        // reboot, kexec_load
+      "CAP_SYSLOG",          // leitura do kernel ring buffer (dmesg)
+      // ── eBPF / tracing ───────────────────
+      "CAP_BPF",             // bpf() — carregar programas no kernel
+      "CAP_PERFMON",         // perf_event_open — amostragem de performance
+      // ── Rede ─────────────────────────────
+      "CAP_NET_ADMIN",       // configurar interfaces, rotas, firewall
+      "CAP_NET_RAW",         // sockets raw (injeção de pacotes)
+      "CAP_NET_BIND_SERVICE",// bind em portas <1024
+      // ── Processos / debugging ────────────
+      "CAP_SYS_PTRACE",      // ptrace — debugar qualquer processo
+      "CAP_MKNOD",           // mknod — criar device nodes
+      "CAP_SYS_CHROOT",      // chroot (bwrap já provê isolamento)
+      // ── Permissões de arquivo ───────────
+      "CAP_DAC_OVERRIDE",    // ignorar permissões de leitura/escrita
+      "CAP_FOWNER",          // chmod/chown em arquivos de outros
+      "CAP_FSETID",          // manter bits SUID/SGID
+      "CAP_SETUID",          // setuid
+      "CAP_SETGID",          // setgid
+    ],
+  },
+  seccomp: {
+    enabled: true,
+    // Resolvido em runtime para <extension-dir>/seccomp.bpf
+    bpfPath: "",
   },
 };

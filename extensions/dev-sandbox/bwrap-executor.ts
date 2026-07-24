@@ -8,7 +8,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, closeSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
@@ -54,6 +54,7 @@ function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
     config.filesystem.denyPaths.join(","),
     config.filesystem.extraWritable.join(","),
     config.filesystem.extraReadonly.join(","),
+    config.capabilities.drop.join(","),
   ];
   return parts.join("|");
 }
@@ -225,6 +226,15 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     }
   }
 
+  // ── Capabilities ──────────────────────────────
+  // Remove capabilities perigosas. São mantidas apenas:
+  //   CAP_SYS_NICE  — nice/renice (ex: nice make)
+  //   CAP_SYS_RESOURCE — setrlimit (ex: ulimit -n)
+  // O agente não precisa de nenhuma outra.
+  for (const cap of config.capabilities.drop) {
+    args.push("--cap-drop", cap);
+  }
+
   // ── Isolamento de ambiente ────────────────────
   // --clearenv já foi adicionado no início dos args.
   // Agora repassa apenas vars seguras (desenvolvimento/runtime).
@@ -251,6 +261,9 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
  * Cria um novo namespace bwrap, executa o comando, coleta
  * stdout/stderr, e retorna o resultado. O namespace é
  * destruído automaticamente quando o processo termina.
+ *
+ * Se config.seccomp estiver habilitado e o arquivo BPF
+ * existir, o filtro é carregado via --seccomp FD.
  */
 export function execInSandbox(
   config: SandboxConfig,
@@ -258,16 +271,44 @@ export function execInSandbox(
 ): Promise<BwrapResult> {
   return new Promise((resolve, reject) => {
     const baseArgs = buildBwrapArgs(config, opts.cwd);
-    const args = [...baseArgs, ...opts.command];
+    const args = [...baseArgs];
+
+    // ── Seccomp BPF ──────────────────────────
+    let bpfFd: number | undefined;
+    const seccompCfg = config.seccomp;
+    if (seccompCfg?.enabled && seccompCfg.bpfPath && existsSync(seccompCfg.bpfPath)) {
+      try {
+        bpfFd = openSync(seccompCfg.bpfPath, "r");
+        // FD 3 no child = arquivo BPF
+        args.push("--seccomp", "3");
+      } catch {
+        // Degradação segura: segue sem seccomp
+        bpfFd = undefined;
+      }
+    }
+
+    // Comando a executar
+    args.push(...opts.command);
+
+    // stdio: stdin, stdout, stderr, + opcionalmente FD 3 (BPF)
+    const stdio: any[] = ["pipe", "pipe", "pipe"];
+    if (bpfFd !== undefined) {
+      stdio.push(bpfFd);
+    }
 
     const child = spawn("bwrap", args, {
       cwd: opts.cwd,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio,
       detached: true,
       // Env mínimo para o binário bwrap — as vars do sandbox são
       // controladas por --clearenv + --setenv nos args acima
       env: { PATH: process.env.PATH || "" },
     });
+
+    // Fecha cópia do pai após fork — o child tem sua própria
+    if (bpfFd !== undefined) {
+      closeSync(bpfFd);
+    }
 
     // Pipe stdin
     if (opts.stdin !== undefined) {

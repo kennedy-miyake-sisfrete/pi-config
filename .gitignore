@@ -29,3 +29,7 @@ mcp-cache.json
 # Backup files
 *.bak
 *.backup
+
+# Rust build artifacts (gen-seccomp)
+extensions/dev-sandbox/gen-seccomp/target/
+extensions/dev-sandbox/gen-seccomp-bin
