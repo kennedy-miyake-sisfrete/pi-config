@@ -12,6 +12,34 @@ import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
+// ─── Env vars seguras (whitelist) ──────────────────────────
+
+/**
+ * Variáveis de ambiente repassadas ao sandbox após --clearenv.
+ * Apenas vars de desenvolvimento e runtime — nunca secrets.
+ *
+ * Excluídas por padrão: *_KEY, *_TOKEN, *_SECRET, *_PASSWORD,
+ *   AWS_*, GCP_*, AZURE_*, DOCKER_*, GITHUB_TOKEN, NPM_TOKEN,
+ *   OPENAI_*, ANTHROPIC_*, GOOGLE_API_KEY, DATABASE_URL, etc.
+ */
+const SAFE_ENV_VARS = new Set([
+  "COLORTERM", "DBUS_SESSION_BUS_ADDRESS", "DISPLAY",
+  "EDITOR", "FORCE_COLOR", "INFOPATH", "LANG", "LC_ALL",
+  "LC_COLLATE", "LC_CTYPE", "LC_MESSAGES", "LC_MONETARY",
+  "LC_NUMERIC", "LC_TIME", "LD_LIBRARY_PATH", "LIBRARY_PATH",
+  "MANPATH", "NO_COLOR", "NODE_OPTIONS", "NVM_BIN", "NVM_DIR",
+  "PAGER", "PATH", "PKG_CONFIG_PATH", "SHELL", "SSH_AGENT_PID",
+  "TERM", "VISUAL", "WAYLAND_DISPLAY",
+  "XDG_CURRENT_DESKTOP", "XDG_RUNTIME_DIR", "XDG_SESSION_CLASS",
+  "XDG_SESSION_DESKTOP", "XDG_SESSION_TYPE",
+  // Python
+  "CONDA_DEFAULT_ENV", "CONDA_PREFIX", "JAVA_HOME",
+  "PIP_REQUIRE_VIRTUALENV", "PYTHONPATH", "VIRTUAL_ENV",
+  // Go / Rust / C++
+  "CARGO_HOME", "C_INCLUDE_PATH", "CPATH", "CPLUS_INCLUDE_PATH",
+  "GOPATH", "GOROOT", "RUSTUP_HOME",
+]);
+
 // ─── Cache de argumentos bwrap ──────────────────────────────
 
 const bwrapArgsCache = new Map<string, string[]>();
@@ -47,6 +75,9 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     "--unshare-all",
     "--die-with-parent",
     "--new-session",
+    // Limpa todas as env vars do host antes de montar o sandbox.
+    // --setenv abaixo (SSH, safe vars, HOME, USER) são aplicados depois.
+    "--clearenv",
     "--proc", "/proc",
     "--dev", "/dev",
     "--tmpfs", "/tmp",
@@ -184,6 +215,15 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     }
   }
 
+  // ── Isolamento de ambiente ────────────────────
+  // --clearenv já foi adicionado no início dos args.
+  // Agora repassa apenas vars seguras (desenvolvimento/runtime).
+  for (const [key, value] of Object.entries(process.env)) {
+    if (SAFE_ENV_VARS.has(key) && value !== undefined) {
+      args.push("--setenv", key, value);
+    }
+  }
+
   // HOME isolado — cria diretório vazio no namespace
   args.push("--dir", home);
   args.push("--setenv", "HOME", home);
@@ -214,7 +254,9 @@ export function execInSandbox(
       cwd: opts.cwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
-      env: { ...process.env },
+      // Env mínimo para o binário bwrap — as vars do sandbox são
+      // controladas por --clearenv + --setenv nos args acima
+      env: { PATH: process.env.PATH || "" },
     });
 
     // Pipe stdin
