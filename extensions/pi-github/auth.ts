@@ -43,15 +43,4 @@ export function getAuthInfo(): AuthInfo {
 	return info;
 }
 
-const ENV_VARS = ["GH_TOKEN", "GITHUB_TOKEN"] as const;
 
-/**
- * Retorna token de ambiente (GH_TOKEN ou GITHUB_TOKEN), se definido.
- * gh CLI usa estas variáveis automaticamente.
- */
-export function getEnvToken(): string | null {
-	for (const v of ENV_VARS) {
-		if (process.env[v]) return process.env[v]!;
-	}
-	return null;
-}

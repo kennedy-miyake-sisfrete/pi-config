@@ -38,7 +38,7 @@ export type SearchParams = Static<typeof SearchParams>;
 export const ListPrsParams = Type.Object({
 	state: Type.Optional(
 		Type.Union(
-			[Type.Literal("open"), Type.Literal("closed"), Type.Literal("all")],
+			[Type.Literal("open"), Type.Literal("closed"), Type.Literal("merged"), Type.Literal("all")],
 			{ description: "Filtrar por estado", default: "open" },
 		),
 	),
