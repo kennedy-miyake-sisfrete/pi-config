@@ -15,9 +15,13 @@ import type {
 	ListPrsParams,
 	ListIssuesParams,
 	SearchParams,
+	ViewPrParams,
+	ViewIssueParams,
 	GhPrResult,
 	GhIssueResult,
 	GhSearchResult,
+	GhPrDetail,
+	GhIssueDetail,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -138,6 +142,26 @@ export function createGh(exec: ExecFn) {
 			];
 
 			return execGh<GhSearchResult[]>(exec, args, true);
+		},
+
+		// ── View PR ───────────────────────────────────────────────────
+		async prView(opts: ViewPrParams): Promise<GhPrDetail> {
+			const args = [
+				"pr", "view", String(opts.number),
+				"--json", "number,title,body,state,headRefName,baseRefName,url,author,createdAt,updatedAt,mergeable,labels,assignees,comments",
+			];
+			if (opts.repo) args.push("--repo", opts.repo);
+			return execGh<GhPrDetail>(exec, args, true);
+		},
+
+		// ── View Issue ────────────────────────────────────────────────
+		async issueView(opts: ViewIssueParams): Promise<GhIssueDetail> {
+			const args = [
+				"issue", "view", String(opts.number),
+				"--json", "number,title,body,state,url,author,createdAt,labels,assignees,comments",
+			];
+			if (opts.repo) args.push("--repo", opts.repo);
+			return execGh<GhIssueDetail>(exec, args, true);
 		},
 
 		// ── Auth ──────────────────────────────────────────────────────
