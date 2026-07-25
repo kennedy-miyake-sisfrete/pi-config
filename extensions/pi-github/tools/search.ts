@@ -61,7 +61,7 @@ export function searchTool(gh: GhApi) {
 
 				const lines = [
 					`## 🔍 Resultados da busca: "${params.query}"`,
-					`",
+					"",
 					`(${results.length} encontrado${results.length > 1 ? "s" : ""})`,
 					"",
 				];
