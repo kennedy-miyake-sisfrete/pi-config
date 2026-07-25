@@ -59,6 +59,18 @@ export const ListIssuesParams = Type.Object({
 });
 export type ListIssuesParams = Static<typeof ListIssuesParams>;
 
+export const ViewPrParams = Type.Object({
+	number: Type.Integer({ description: "Número do pull request" }),
+	repo: Type.Optional(Type.String({ description: "Repositório (owner/name). Padrão: repositório atual" })),
+});
+export type ViewPrParams = Static<typeof ViewPrParams>;
+
+export const ViewIssueParams = Type.Object({
+	number: Type.Integer({ description: "Número da issue" }),
+	repo: Type.Optional(Type.String({ description: "Repositório (owner/name). Padrão: repositório atual" })),
+});
+export type ViewIssueParams = Static<typeof ViewIssueParams>;
+
 // ── Tipos de resultado retornados pelo gh CLI ─────────────────────────
 
 export interface GhAuthor {
@@ -106,4 +118,43 @@ export interface AuthInfo {
 	available: boolean;
 	authenticated: boolean;
 	user: string;
+}
+
+// ── Tipos de detalhes (view) ──────────────────────────────────────────
+
+export interface GhComment {
+	author: GhAuthor;
+	body: string;
+	createdAt: string;
+	updatedAt?: string;
+}
+
+export interface GhPrDetail {
+	number: number;
+	title: string;
+	body: string;
+	state: "OPEN" | "CLOSED" | "MERGED";
+	headRefName: string;
+	baseRefName: string;
+	url: string;
+	author: GhAuthor;
+	createdAt: string;
+	updatedAt?: string;
+	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+	labels: GhLabel[];
+	assignees: GhAuthor[];
+	comments: GhComment[];
+}
+
+export interface GhIssueDetail {
+	number: number;
+	title: string;
+	body: string;
+	state: "OPEN" | "CLOSED";
+	url: string;
+	author: GhAuthor;
+	createdAt: string;
+	labels: GhLabel[];
+	assignees: GhAuthor[];
+	comments: GhComment[];
 }
