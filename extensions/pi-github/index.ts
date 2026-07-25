@@ -31,27 +31,37 @@ import { createGithubCommand } from "./commands/github";
 export default function (pi: ExtensionAPI) {
 	// ── gh disponível? ────────────────────────────────────────────────
 	const auth = getAuthInfo();
+
+	// Aviso — adiado para session_start (runtime precisa estar pronto)
+	// Flag evita repetição em resume/fork
+	let notified = false;
+	pi.on("session_start", () => {
+		if (notified) return;
+		notified = true;
+
+		if (!auth.available) {
+			pi.sendMessage({
+				customType: "github_status",
+				content: "⚠️ gh CLI não encontrado. Tools GitHub desativadas. Instale: `apt install gh`",
+				display: true,
+			});
+		} else if (!auth.authenticated) {
+			pi.sendMessage({
+				customType: "github_status",
+				content:
+					"⚠️ gh CLI não autenticado. Tools podem falhar. Autentique: `gh auth login` ou exporte GH_TOKEN",
+				display: true,
+			});
+		}
+	});
+
 	if (!auth.available) {
-		// gh não instalado — registra tools que reportam erro claro
-		pi.sendMessage({
-			customType: "github_status",
-			content: "⚠️ gh CLI não encontrado. Tools GitHub desativadas. Instale: `apt install gh`",
-			display: true,
-		});
+		// gh não instalado — não registra nada
 		return;
 	}
 
 	// ── gh wrapper (runtime) ──────────────────────────────────────────
 	const gh = createGh(pi.exec.bind(pi));
-
-	if (!auth.authenticated) {
-		pi.sendMessage({
-			customType: "github_status",
-			content:
-				"⚠️ gh CLI não autenticado. Tools podem falhar. Autentique: `gh auth login` ou exporte GH_TOKEN",
-			display: true,
-		});
-	}
 
 	// ── Tools ─────────────────────────────────────────────────────────
 	pi.registerTool(createPrTool(gh));
