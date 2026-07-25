@@ -109,6 +109,75 @@ function findDangerousFiles(cwd: string, patterns: string[]): string[] {
   return results;
 }
 
+// ─── Localização da documentação do pi ───────────────────────
+
+/**
+ * Tenta localizar o diretório de instalação do pi para montar
+ * sua documentação (README.md, docs/, examples/) no sandbox.
+ *
+ * Ordem de busca:
+ *   1. mise: ~/.local/share/mise/installs/pi/<version>/
+ *   2. fallback: ~/.local/share/pi/
+ *   3. any dir sob ~/.local/share/ com prefixo pi*
+ */
+function findPiDocsDir(home: string): string | null {
+  // 1. mise — procura versão instalada (ex: ~/.local/share/mise/installs/pi/0.82.1/)
+  const miseBase = join(home, ".local", "share", "mise", "installs", "pi");
+  if (existsSync(miseBase)) {
+    try {
+      const entries = readdirSync(miseBase, { withFileTypes: true });
+      // Ordena versões decrescente (ex: 0.82.1 > 0.81.0) e pega a maior
+      const versions = entries
+        .filter(e => e.isDirectory())
+        .map(e => e.name)
+        .sort((a, b) => {
+          const pa = a.split(".").map(Number);
+          const pb = b.split(".").map(Number);
+          for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const va = pa[i] || 0;
+            const vb = pb[i] || 0;
+            if (va !== vb) return vb - va;
+          }
+          return 0;
+        });
+      if (versions.length > 0) {
+        const candidate = join(miseBase, versions[0]);
+        if (existsSync(join(candidate, "README.md"))) {
+          return candidate;
+        }
+      }
+    } catch {
+      // Degradação segura
+    }
+  }
+
+  // 2. fallback: ~/.local/share/pi/
+  const localPi = join(home, ".local", "share", "pi");
+  if (existsSync(localPi) && existsSync(join(localPi, "README.md"))) {
+    return localPi;
+  }
+
+  // 3. varre ~/.local/share/ por diretórios pi*/
+  const localShare = join(home, ".local", "share");
+  if (existsSync(localShare)) {
+    try {
+      const entries = readdirSync(localShare, { withFileTypes: true });
+      for (const e of entries) {
+        if (e.isDirectory() && e.name.startsWith("pi") && e.name !== "pi") {
+          const candidate = join(localShare, e.name);
+          if (existsSync(join(candidate, "README.md"))) {
+            return candidate;
+          }
+        }
+      }
+    } catch {
+      // Degradação segura
+    }
+  }
+
+  return null;
+}
+
 // ─── Cache de argumentos bwrap ──────────────────────────────
 
 const bwrapArgsCache = new Map<string, string[]>();
@@ -190,6 +259,16 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
   const skillsDir = join(home, ".pi", "agent", "skills");
   if (existsSync(skillsDir)) {
     args.push("--ro-bind", skillsDir, skillsDir);
+  }
+
+  // Documentação do pi — monta o diretório de instalação para acesso
+  // a README.md, docs/ e examples/. Suporta instalação via:
+  //   - mise: ~/.local/share/mise/installs/pi/<version>/
+  //   - npm global: ~/.local/share/pi/
+  //   - outro: qualquer path com README.md em ~/.local/share/pi*/
+  const piDocsDir = findPiDocsDir(home);
+  if (piDocsDir) {
+    args.push("--ro-bind", piDocsDir, piDocsDir);
   }
 
   // Projeto read-write (ponto central do sandbox)
