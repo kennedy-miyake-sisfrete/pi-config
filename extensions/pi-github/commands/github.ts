@@ -63,10 +63,12 @@ async function handleHelp(ctx: ExtensionCommandContext) {
 			"**PRs**",
 			"  `/github pr create`      — Cria PR (abre editor para body)",
 			"  `/github pr list`        — Lista PRs abertas",
+			"  `/github pr view <num>`  — Exibe detalhes do PR",
 			"",
 			"**Issues**",
 			"  `/github issue create`   — Cria issue (abre editor para body)",
 			"  `/github issue list`     — Lista issues abertas",
+			"  `/github issue view <num>` — Exibe detalhes da issue",
 			"",
 			"**Busca**",
 			"  `/github search <query>` — Busca issues/PRs",
@@ -165,8 +167,51 @@ async function handlePr(
 		return;
 	}
 
+	if (sub === "view") {
+		const numStr = args[1];
+		const num = parseInt(numStr, 10);
+		if (!numStr || isNaN(num)) {
+			ctx.ui.notify("Uso: /github pr view <número>", "info");
+			return;
+		}
+
+		try {
+			const pr = await gh.prView({ number: num });
+			const lines = [
+				`## ${pr.state === "OPEN" ? "🟢" : pr.state === "MERGED" ? "✅" : "🔴"} #${pr.number} — ${pr.title}`,
+				`**Estado:** ${pr.state.toLowerCase()}` +
+					` · **Mergeável:** ${pr.mergeable === "MERGEABLE" ? "✅ sim" : pr.mergeable === "CONFLICTING" ? "❌ conflitos" : "❓ desconhecido"}`,
+				`**Branch:** \`${pr.headRefName}\` → \`${pr.baseRefName}\``,
+				`**Autor:** @${pr.author.login} · ${new Date(pr.createdAt).toLocaleDateString("pt-BR")}`,
+			];
+			if (pr.labels.length) lines.push(`**Labels:** ${pr.labels.map(l => l.name).join(", ")}`);
+			if (pr.assignees.length) lines.push(`**Assignees:** ${pr.assignees.map(a => `@${a.login}`).join(", ")}`);
+			lines.push("", `**URL:** ${pr.url}`);
+
+			if (pr.body) {
+				lines.push("", "---", "", pr.body);
+			} else {
+				lines.push("", "*Sem descrição*");
+			}
+
+			if (pr.comments.length > 0) {
+				const recent = pr.comments.slice(-3);
+				lines.push("", "---", `**Comentários** (${pr.comments.length} total, exibindo ${recent.length}):`, "");
+				for (const c of recent) {
+					lines.push(`**@${c.author.login}** · ${new Date(c.createdAt).toLocaleDateString("pt-BR")}:`, c.body, "");
+				}
+			}
+
+			ctx.ui.notify(lines.join("\n"), "info");
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			ctx.ui.notify(`❌ Erro ao buscar PR #${num}: ${msg}`, "error");
+		}
+		return;
+	}
+
 	ctx.ui.notify(
-		"Uso: /github pr create | /github pr list",
+		"Uso: /github pr create | /github pr list | /github pr view <num>",
 		"info",
 	);
 }
@@ -255,8 +300,49 @@ async function handleIssue(
 		return;
 	}
 
+	if (sub === "view") {
+		const numStr = args[1];
+		const num = parseInt(numStr, 10);
+		if (!numStr || isNaN(num)) {
+			ctx.ui.notify("Uso: /github issue view <número>", "info");
+			return;
+		}
+
+		try {
+			const issue = await gh.issueView({ number: num });
+			const lines = [
+				`## ${issue.state === "OPEN" ? "🟢" : "🔴"} #${issue.number} — ${issue.title}`,
+				`**Estado:** ${issue.state.toLowerCase()}`,
+				`**Autor:** @${issue.author.login} · ${new Date(issue.createdAt).toLocaleDateString("pt-BR")}`,
+			];
+			if (issue.labels.length) lines.push(`**Labels:** ${issue.labels.map(l => l.name).join(", ")}`);
+			if (issue.assignees.length) lines.push(`**Assignees:** ${issue.assignees.map(a => `@${a.login}`).join(", ")}`);
+			lines.push("", `**URL:** ${issue.url}`);
+
+			if (issue.body) {
+				lines.push("", "---", "", issue.body);
+			} else {
+				lines.push("", "*Sem descrição*");
+			}
+
+			if (issue.comments.length > 0) {
+				const recent = issue.comments.slice(-3);
+				lines.push("", "---", `**Comentários** (${issue.comments.length} total, exibindo ${recent.length}):`, "");
+				for (const c of recent) {
+					lines.push(`**@${c.author.login}** · ${new Date(c.createdAt).toLocaleDateString("pt-BR")}:`, c.body, "");
+				}
+			}
+
+			ctx.ui.notify(lines.join("\n"), "info");
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			ctx.ui.notify(`❌ Erro ao buscar issue #${num}: ${msg}`, "error");
+		}
+		return;
+	}
+
 	ctx.ui.notify(
-		"Uso: /github issue create | /github issue list",
+		"Uso: /github issue create | /github issue list | /github issue view <num>",
 		"info",
 	);
 }
