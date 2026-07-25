@@ -16,6 +16,18 @@ export interface SandboxFilesystemConfig {
   extraReadonly: string[];
   /** Paths explicitamente negados — sobrescreve /usr se necessário. */
   denyPaths: string[];
+  /**
+   * Padrões de nomes de arquivo para negar automaticamente.
+   * Escaneia $cwd recursivamente, e todo arquivo cujo basename
+   * corresponda a um padrão é substituído por `/dev/null`
+   * (read-only, vazio), tornando o conteúdo original inacessível
+   * dentro do sandbox.
+   *
+   * Suporta `*` como wildcard (ex: `*.pem`, `.env.*`).
+   * Sem `*` = correspondência exata.
+   * Ignora .git, node_modules, .sandbox-cache durante scan.
+   */
+  denyFilePatterns: string[];
   /** Diretórios de cache com bind persistente entre comandos. */
   cacheDirs: SandboxCacheDirs;
 }
@@ -112,6 +124,7 @@ export const DEFAULT_CONFIG: SandboxConfig = {
     extraWritable: [],
     extraReadonly: [],
     denyPaths: ["/sbin", "/usr/sbin", "/root"],
+    denyFilePatterns: [".env", "*.pem", "*.key"],
     cacheDirs: {
       npm: "",
       pip: "",

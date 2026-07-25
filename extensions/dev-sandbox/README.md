@@ -51,11 +51,15 @@ Montado read-only:
   /etc/resolv.conf, hosts, …      → rede e usuários
   ~/.ssh/known_hosts              → verificação de host key (modo agent)
   ~/.ssh/config                   → configuração SSH (modo agent)
+  ~/.pi/agent/skills              → skills do agente (sempre)
 
 Montado read-write:
   $PWD                            → diretório do projeto
   .sandbox-cache/npm, pip         → cache persistente
   $SSH_AUTH_SOCK (socket)         → ssh-agent socket (modo agent)
+
+Montado como `/dev/null`:
+  .env, *.pem, *.key              → arquivos sensíveis (conteúdo oculto)
 
 Montado vazio (tmpfs):
   /sbin, /usr/sbin, /root         → ferramentas de sistema bloqueadas
@@ -90,6 +94,7 @@ NÃO montado:
     "extraWritable": [],
     "extraReadonly": [],
     "denyPaths": ["/sbin", "/usr/sbin", "/root"],
+    "denyFilePatterns": [".env", "*.pem", "*.key"],
     "cacheDirs": { "npm": "", "pip": "" }
   },
   "ssh": { "mode": "agent" }
@@ -106,11 +111,17 @@ Exemplo: `/meu-projeto/.pi/sandbox.json`
 {
   "internet": { "enabled": false },
   "filesystem": {
-    "extraWritable": ["/var/run/docker.sock"]
+    "extraWritable": ["/var/run/docker.sock"],
+    "denyFilePatterns": [".env", ".env.*", "*.pem", "*.key", "secrets/*"]
   },
   "ssh": { "mode": "none" }
 }
 ```
+
+> **`denyFilePatterns`**: lista de padrões de nomes de arquivo.
+> O sandbox escaneia $PWD recursivamente e substitui cada arquivo
+> correspondente por `/dev/null` (vazio, read-only). Suporta `*` como
+> wildcard. Ignora `.git/`, `node_modules/`, `.sandbox-cache/`.
 
 ## Comandos
 
