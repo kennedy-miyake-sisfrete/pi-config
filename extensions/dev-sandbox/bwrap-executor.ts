@@ -116,6 +116,12 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     args.push("--ro-bind", "/etc/ca-certificates", "/etc/ca-certificates");
   }
 
+  // Skills do agente — acessíveis independente do diretório do projeto
+  const skillsDir = join(home, ".pi", "agent", "skills");
+  if (existsSync(skillsDir)) {
+    args.push("--ro-bind", skillsDir, skillsDir);
+  }
+
   // Projeto read-write (ponto central do sandbox)
   args.push("--bind", cwd, cwd);
 
