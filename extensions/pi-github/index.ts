@@ -27,6 +27,8 @@ import { searchTool } from "./tools/search";
 import { listPrsTool } from "./tools/list-prs";
 import { listIssuesTool } from "./tools/list-issues";
 import { createGithubCommand } from "./commands/github";
+import { viewPrTool } from "./tools/view-pr";
+import { viewIssueTool } from "./tools/view-issue";
 
 export default function (pi: ExtensionAPI) {
 	// ── gh disponível? ────────────────────────────────────────────────
@@ -69,6 +71,8 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool(searchTool(gh));
 	pi.registerTool(listPrsTool(gh));
 	pi.registerTool(listIssuesTool(gh));
+	pi.registerTool(viewPrTool(gh));
+	pi.registerTool(viewIssueTool(gh));
 
 	// ── Slash Commands ───────────────────────────────────────────────
 	pi.registerCommand("github", createGithubCommand(gh));
