@@ -110,11 +110,12 @@ Exemplos:
 BRANCH=$(git branch --show-current)
 ```
 
-- Se for `main` ou `master`, **nunca commitar diretamente**. Criar branch feature:
+- Se for `development`, `main` ou `master`, **nunca commitar diretamente**. Criar branch feature:
   ```bash
   git checkout -b feat/descricao-<numero>
   ```
   E commitar lá.
+- `development` é branch de integração — recebe PRs de feature branches. Nunca commitar nela.
 
 ### 2. Verificar o staged
 
@@ -228,13 +229,13 @@ git commit -m "feat(auth): Adiciona rota de login com JWT #25321"
 BRANCH=$(git branch --show-current)
 ```
 
-- **Nunca** fazer `git push` para `main` ou `master` diretamente.
+- **Nunca** fazer `git push` para `development`, `main` ou `master` diretamente.
 - **Nunca** executar `git push` sem solicitação explícita do usuário. O commit é o fim do fluxo; push é decisão do usuário.
 - Se estiver em branch feature, push só deve ir para `origin/<mesma-branch>`:
   ```bash
   git push origin "$BRANCH"
   ```
-- Para mergear em `main`/`master`, usar Pull Request / Merge Request na plataforma.
+- Para mergear em `development`, `main` ou `master`, usar Pull Request / Merge Request na plataforma.
 
 ## Fluxo completo
 
