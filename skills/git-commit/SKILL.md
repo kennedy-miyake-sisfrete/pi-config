@@ -131,6 +131,46 @@ git status
   mesmo que estejam modified/untracked no `git status`. Eles são mudanças pré-existentes
   e não pertencem a este commit.
 
+### 2.1 Proteger arquivos que nunca devem ser commitados
+
+Alguns arquivos são locais ou de configuração pessoal e **nunca** devem ser commitados,
+em hipótese alguma. Exemplos: `settings.json`, secrets locais, IDE config, credenciais.
+
+**Untracked** → adicionar ao `.gitignore`:
+
+```bash
+echo "caminho/do/arquivo" >> .gitignore
+git add .gitignore
+git commit -m "chore: Ignora arquivo X"
+# push após autorização do usuário
+```
+
+**Tracked com mudanças locais** → `git update-index --skip-worktree`:
+
+```bash
+git update-index --skip-worktree <arquivo>
+```
+
+Isso faz o Git ignorar mudanças locais no arquivo. Ele não aparece mais em `git status`
+e não é commitado acidentalmente. O arquivo permanece no repositório remoto com seu
+conteúdo original — só suas alterações locais são ignoradas.
+
+> **Nunca** execute `git restore` ou `git checkout` em arquivos protegidos com
+> `skip-worktree`, pois isso sobrescreveria as alterações locais com a versão do
+> repositório.
+
+**Para reverter o skip-worktree** (se precisar commitar o arquivo):
+
+```bash
+git update-index --no-skip-worktree <arquivo>
+```
+
+**Para listar arquivos com skip-worktree ativo:**
+
+```bash
+git ls-files -v | grep '^S'
+```
+
 ### 3. Verificar whitespace errors
 
 ```bash
