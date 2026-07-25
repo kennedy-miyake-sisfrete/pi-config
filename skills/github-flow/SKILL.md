@@ -14,6 +14,8 @@ description: Gerencia pull requests e issues via GitHub. Usa tools pi-github par
 | `github_search` | Antes de criar issue/PR: verificar se já existe duplicata |
 | `github_list_prs` | Consultar PRs abertas por estado, autor |
 | `github_list_issues` | Consultar issues abertas por label, estado |
+| `github_pr_view` | Ver detalhes completos de um PR (body, status, mergeabilidade, labels, assignees, comentários) |
+| `github_issue_view` | Ver detalhes completos de uma issue (body, labels, assignees, comentários) |
 
 **Comando `/github`:** para ações interativas (editor de body, seleção de PRs).
 
@@ -97,8 +99,7 @@ github_create_pr body: "... - Refs #25321"
 
 ---
 
-## Limitações atuais
+## Observações
 
-- Tools retornam resumo de PRs/issues (título, estado, autor, data, URL)
-- Para ver corpo/detalhes completos, usar URL no browser ou `gh pr view`/`gh issue view` no bash
+- `github_pr_view` e `github_issue_view` fornecem corpo completo, labels, assignees, mergeabilidade e últimos comentários — sem precisar sair do terminal
 - Comando `/github` oferece fluxo interativo com editor de body e seletor de listas
