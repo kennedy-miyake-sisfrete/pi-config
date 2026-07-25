@@ -21,6 +21,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createGh } from "./gh";
 import { getAuthInfo } from "./auth";
+import { createPrTool } from "./tools/create-pr";
+import { createIssueTool } from "./tools/create-issue";
+import { searchTool } from "./tools/search";
+import { listPrsTool } from "./tools/list-prs";
+import { listIssuesTool } from "./tools/list-issues";
 
 export default function (pi: ExtensionAPI) {
 	// ── gh disponível? ────────────────────────────────────────────────
@@ -48,19 +53,11 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// ── Tools ─────────────────────────────────────────────────────────
-	// (implementadas em etapas subsequentes)
-	//
-	// import { createPrTool } from "./tools/create-pr";
-	// import { createIssueTool } from "./tools/create-issue";
-	// import { searchTool } from "./tools/search";
-	// import { listPrsTool } from "./tools/list-prs";
-	// import { listIssuesTool } from "./tools/list-issues";
-	//
-	// pi.registerTool(createPrTool(gh));
-	// pi.registerTool(createIssueTool(gh));
-	// pi.registerTool(searchTool(gh));
-	// pi.registerTool(listPrsTool(gh));
-	// pi.registerTool(listIssuesTool(gh));
+	pi.registerTool(createPrTool(gh));
+	pi.registerTool(createIssueTool(gh));
+	pi.registerTool(searchTool(gh));
+	pi.registerTool(listPrsTool(gh));
+	pi.registerTool(listIssuesTool(gh));
 
 	// ── Comandos ──────────────────────────────────────────────────────
 	// (implementado em etapas subsequentes)
