@@ -8,8 +8,8 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, openSync, closeSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, openSync, closeSync, readdirSync, realpathSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
 // ─── Env vars seguras (whitelist) ──────────────────────────
@@ -40,6 +40,75 @@ const SAFE_ENV_VARS = new Set([
   "GOPATH", "GOROOT", "RUSTUP_HOME",
 ]);
 
+// ─── Detection de arquivos sensíveis ───────────────────────────
+
+/**
+ * Casamento simples com wildcard `*`.
+ * - `*` corresponde a qualquer sequência (exceto `/`).
+ * - Sem `*` = igualdade exata.
+ */
+function matchSimpleGlob(name: string, pattern: string): boolean {
+  if (!pattern.includes("*")) return name === pattern;
+  const [prefix, suffix] = pattern.split("*", 2);
+  if (prefix && !name.startsWith(prefix)) return false;
+  if (suffix && !name.endsWith(suffix)) return false;
+  if (prefix && suffix) return name.length >= prefix.length + suffix.length;
+  return true;
+}
+
+/**
+ * Escaneia $cwd recursivamente por arquivos cujo basename
+ * corresponda a qualquer padrão em `patterns`.
+ *
+ * Ignora .git, node_modules, .sandbox-cache para performance.
+ */
+function findDangerousFiles(cwd: string, patterns: string[]): string[] {
+  if (patterns.length === 0) return [];
+
+  const results: string[] = [];
+
+  function walk(current: string) {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const name = entry.name;
+
+      // Pula diretórios grandes/conhecidos
+      if (entry.isDirectory()) {
+        if (name === ".git" || name === "node_modules" || name === ".sandbox-cache") continue;
+        walk(join(current, name));
+        continue;
+      }
+
+      // Só arquivos regulares
+      if (!entry.isFile()) continue;
+
+      // Testa contra cada padrão
+      for (const pattern of patterns) {
+        if (matchSimpleGlob(name, pattern)) {
+          results.push(join(current, name));
+          break;
+        }
+      }
+    }
+  }
+
+  // Proteção contra cwd inexistente
+  try {
+    if (!existsSync(cwd)) return results;
+    walk(cwd);
+  } catch {
+    // Degradação segura: segue sem negar arquivos
+  }
+
+  return results;
+}
+
 // ─── Cache de argumentos bwrap ──────────────────────────────
 
 const bwrapArgsCache = new Map<string, string[]>();
@@ -52,6 +121,7 @@ function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
     config.filesystem.cacheDirs.npm,
     config.filesystem.cacheDirs.pip,
     config.filesystem.denyPaths.join(","),
+    config.filesystem.denyFilePatterns.join(","),
     config.filesystem.extraWritable.join(","),
     config.filesystem.extraReadonly.join(","),
     config.capabilities.drop.join(","),
@@ -124,6 +194,16 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
 
   // Projeto read-write (ponto central do sandbox)
   args.push("--bind", cwd, cwd);
+
+  // Arquivos sensíveis no projeto — substituídos por /dev/null (vazio/imutável)
+  const sensitivePatterns = config.filesystem.denyFilePatterns;
+  if (sensitivePatterns.length > 0) {
+    const sensitiveFiles = findDangerousFiles(cwd, sensitivePatterns);
+    for (const f of sensitiveFiles) {
+      // /dev/null já existe porque --dev /dev é adicionado no início
+      args.push("--ro-bind", "/dev/null", f);
+    }
+  }
 
   // Rede do host
   if (config.internet.enabled) {
