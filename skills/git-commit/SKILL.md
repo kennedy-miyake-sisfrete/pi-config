@@ -5,6 +5,31 @@ description: Faz commits semânticos seguindo Conventional Commits com formato p
 
 # Git Commit
 
+## REGRAS ABSOLUTAS
+
+### 1. NUNCA faça commit sem autorização explícita
+
+**Não importa o que implementei antes.** Mesmo que eu tenha feito 10 alterações, resolvido bugs, escrito testes — **não commito nada** até que o usuário diga "faz o commit" ou equivalente.
+
+- Implementação concluída ≠ permissão para commitar.
+- Se o usuário pedir "faz tal coisa", faço a implementação e paro.
+- Só continuo para o commit se o usuário disser algo como "agora commita" / "faz o commit" / "commit this".
+
+### 2. NUNCA use corpo/descrição sem autorização explícita
+
+**Nunca** escrevo commit com corpo (bullet list). Só título. A menos que o usuário peça explicitamente "com descrição" / "com corpo" / "com bullets".
+
+- Padrão absoluto: `tipo(escopo): Título #<numero>` (título apenas).
+- Descrição só se o usuário disser "com descrição" ou equivalente.
+
+### Violação = retrabalho
+
+Se eu quebrar estas regras, o usuário precisa reverter ou refazer o commit. Isso é desperdício. Portanto: **só commit com autorização explícita. Só descrição com autorização explícita.**
+
+---
+
+# Git Commit
+
 ## Formato
 
 **Com descrição** (quando usuário solicitar explicitamente):
@@ -114,9 +139,15 @@ git diff --check
 
 ### 4. Commitar
 
-**Só executar quando o usuário solicitar explicitamente.** Não commitar automaticamente. Aguardar comando do usuário.
+**NUNCA commitar sem autorização explícita do usuário.**
 
-**Com descrição** (quando usuário pedir corpo):
+Esta é a regra mais importante deste skill. Ignorá-la é violação grave.
+
+- Após implementar qualquer alteração, **pare**. Não execute `git commit`.
+- Só prossiga quando o usuário disser "faz o commit", "commita", "commit this" ou similar.
+- Se o usuário disser "com descrição", use o formato com corpo. Caso contrário, **sempre sem descrição**.
+
+**Com descrição** (quando usuário pedir corpo explicitamente):
 
 Usar um único `-m` para o corpo, com quebras de linha entre os bullets (sem linha em branco):
 
@@ -139,7 +170,7 @@ git commit \
 - Refs #25321"
 ```
 
-**Sem descrição** (padrão):
+**Sem descrição** (padrão — usar SEMPRE a menos que usuário peça corpo explicitamente):
 
 ```bash
 git commit -m "tipo(escopo): Título descritivo em PT-BR #<numero-tarefa>"
@@ -168,13 +199,13 @@ BRANCH=$(git branch --show-current)
 ## Fluxo completo
 
 ```
-0. Confirmar com usuário se deseja commitar             # só executa se solicitado explicitamente
+0. [PARADA OBRIGATÓRIA] Confirmar com usuário se deseja commitar   # NUNCA pular. Implementação não é autorização.
 1. git status                                           # ver o estado geral
 2. git add <arquivos-do-escopo>                        # stage cirúrgico
 3. git status                                           # conferir staged
 4. git diff --cached                                    # revisar o diff
 5. git diff --check                                     # whitespace
-6a. [com descrição] git commit -m "tipo(escopo): msg" -m "- bullet 1.\n- bullet 2."
-6b. [sem descrição]  git commit -m "tipo(escopo): msg #numero"  # padrão
+6a. [com descrição — SÓ se usuário pediu] git commit -m "tipo(escopo): msg" -m "- bullet 1.\n- bullet 2."
+6b. [sem descrição — SEMPRE se usuário não pediu corpo] git commit -m "tipo(escopo): msg #numero"
 7. [somente se solicitado] git push                     # nunca sem autorização explícita
 ```
