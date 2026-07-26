@@ -41,7 +41,11 @@ export function buildTitle(opts: {
 	breaking?: boolean;
 	taskNumber?: string | number;
 }): string {
-	const scope = opts.scope || "sem-scope";
+	if (!opts.scope || opts.scope.trim() === "") {
+		throw new Error("Escopo é obrigatório e não pode estar vazio. Ex: auth, api/orders, docker");
+	}
+
+	const scope = opts.scope.trim();
 	const breaking = opts.breaking ? "!" : "";
 	const task = opts.taskNumber != null ? ` #${opts.taskNumber}` : "";
 	return `${opts.type}(${scope})${breaking}: ${opts.title}${task}`;
