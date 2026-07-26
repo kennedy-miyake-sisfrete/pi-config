@@ -7,6 +7,7 @@
  */
 
 import type { SearchResult, EngineResult } from "./types";
+import { createAbortController } from "./types";
 import { getExaKey } from "../config";
 
 const API_URL = "https://api.exa.ai/search";
@@ -34,9 +35,7 @@ export async function searchExa(
 	}
 
 	try {
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(new Error("TIMEOUT")), TIMEOUT_MS);
-		if (signal) signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+		const { controller, cleanup } = createAbortController(signal, TIMEOUT_MS);
 
 		const response = await fetch(API_URL, {
 			method: "POST",
@@ -48,12 +47,12 @@ export async function searchExa(
 				query,
 				numResults: 10,
 				type: "auto",
+				contents: { text: true },
 			}),
 			signal: controller.signal,
 		});
 
-		clearTimeout(timer);
-		if (signal) signal.removeEventListener("abort", () => controller.abort());
+		cleanup();
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => "");
@@ -75,7 +74,7 @@ export async function searchExa(
 			.map((r) => ({
 				title: r.title ?? r.url,
 				url: r.url,
-				snippet: "",
+				snippet: r.text ?? "",
 			}));
 
 		return { results };
