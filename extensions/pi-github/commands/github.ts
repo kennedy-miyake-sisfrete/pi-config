@@ -26,8 +26,9 @@ export function createGithubCommand(gh: GhApi): {
 } {
 	return {
 		description:
-			"Comandos GitHub. Subcomandos: pr create, pr list, issue create, " +
-			"issue list, search <query>, auth, help",
+			"Comandos GitHub. Subcomandos: pr create, pr list, pr view, pr edit, " +
+			"issue create, issue list, issue view, issue edit, " +
+			"search <query>, auth, help",
 		handler: async (args, ctx) => {
 			const parts = (args ?? "").trim().split(/\s+/);
 			const cmd = parts[0]?.toLowerCase() ?? "";
@@ -65,11 +66,13 @@ async function handleHelp(ctx: ExtensionCommandContext) {
 			"  `/github pr create`      — Cria PR (abre editor para body)",
 			"  `/github pr list`        — Lista PRs abertas",
 			"  `/github pr view <num>`  — Exibe detalhes do PR",
+			"  `/github pr edit <num>`  — Edita PR (title, body, base, labels, assignees, milestone)",
 			"",
 			"**Issues**",
 			"  `/github issue create`   — Cria issue (abre editor para body)",
 			"  `/github issue list`     — Lista issues abertas",
 			"  `/github issue view <num>` — Exibe detalhes da issue",
+			"  `/github issue edit <num>` — Edita issue (title, body, labels, assignees, state, milestone)",
 			"",
 			"**Busca**",
 			"  `/github search <query>` — Busca issues/PRs",
@@ -259,8 +262,68 @@ async function handlePr(
 		return;
 	}
 
+	if (sub === "edit") {
+		const numStr = args[1];
+		const num = parseInt(numStr, 10);
+		if (!numStr || isNaN(num)) {
+			ctx.ui.notify("Uso: /github pr edit <número>", "info");
+			return;
+		}
+
+		try {
+			const current = await gh.prView({ number: num });
+
+			ctx.ui.notify(
+				`🔄 Editando PR #${num}\n` +
+				`Título atual: ${current.title}\n` +
+				`Base atual: ${current.baseRefName}\n` +
+				`Labels: ${current.labels.map(l => l.name).join(", ") || "(nenhuma)"}\n` +
+				`Assignees: ${current.assignees.map(a => `@${a.login}`).join(", ") || "(nenhum)"}`,
+				"info",
+			);
+
+			const title = await ctx.ui.input("Novo título (vazio = manter):", "");
+			const body = ctx.hasUI
+				? (await ctx.ui.editor("Novo body (vazio = manter):", current.body ?? "")) ?? undefined
+				: undefined;
+			const base = await ctx.ui.input("Nova branch base (vazio = manter):", "");
+			const labelsStr = await ctx.ui.input("Labels (separadas por vírgula, vazio = manter):", "");
+			const assigneesStr = await ctx.ui.input("Assignees (separados por vírgula, vazio = manter):", "");
+			const milestoneStr = await ctx.ui.input("Milestone (vazio = manter):", "");
+
+			const labels = labelsStr
+				? labelsStr.split(",").map(s => s.trim()).filter(Boolean)
+				: undefined;
+			const assignees = assigneesStr
+				? assigneesStr.split(",").map(s => s.trim()).filter(Boolean)
+				: undefined;
+
+			await gh.prEdit({
+				number: num,
+				title: title || undefined,
+				body: body || undefined,
+				base: base || undefined,
+				addLabels: labels?.filter(l => !current.labels.map(x => x.name).includes(l)),
+				removeLabels: labels !== undefined
+					? current.labels.map(l => l.name).filter(l => !labels!.includes(l))
+					: undefined,
+				addAssignees: assignees?.filter(a => !current.assignees.map(x => x.login).includes(a)),
+				removeAssignees: assignees !== undefined
+					? current.assignees.map(a => a.login).filter(a => !assignees!.includes(a))
+					: undefined,
+				milestone: milestoneStr || undefined,
+			});
+
+			ctx.ui.notify(`✅ PR #${num} editado com sucesso.`, "success");
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			ctx.ui.notify(`❌ Erro ao editar PR #${num}: ${msg}`, "error");
+		}
+		return;
+	}
+
 	ctx.ui.notify(
-		"Uso: /github pr create | /github pr list | /github pr view <num>",
+		"Uso: /github pr create | /github pr list | /github pr view <num> | /github pr edit <num>",
 		"info",
 	);
 }
@@ -405,8 +468,68 @@ async function handleIssue(
 		return;
 	}
 
+	if (sub === "edit") {
+		const numStr = args[1];
+		const num = parseInt(numStr, 10);
+		if (!numStr || isNaN(num)) {
+			ctx.ui.notify("Uso: /github issue edit <número>", "info");
+			return;
+		}
+
+		try {
+			const current = await gh.issueView({ number: num });
+
+			ctx.ui.notify(
+				`🔄 Editando Issue #${num}\n` +
+				`Título atual: ${current.title}\n` +
+				`Estado atual: ${current.state.toLowerCase()}\n` +
+				`Labels: ${current.labels.map(l => l.name).join(", ") || "(nenhuma)"}\n` +
+				`Assignees: ${current.assignees.map(a => `@${a.login}`).join(", ") || "(nenhum)"}`,
+				"info",
+			);
+
+			const title = await ctx.ui.input("Novo título (vazio = manter):", "");
+			const body = ctx.hasUI
+				? (await ctx.ui.editor("Novo body (vazio = manter):", current.body ?? "")) ?? undefined
+				: undefined;
+			const state = await ctx.ui.input("Novo estado (open/closed, vazio = manter):", "");
+			const labelsStr = await ctx.ui.input("Labels (separadas por vírgula, vazio = manter):", "");
+			const assigneesStr = await ctx.ui.input("Assignees (separados por vírgula, vazio = manter):", "");
+			const milestoneStr = await ctx.ui.input("Milestone (vazio = manter):", "");
+
+			const labels = labelsStr
+				? labelsStr.split(",").map(s => s.trim()).filter(Boolean)
+				: undefined;
+			const assignees = assigneesStr
+				? assigneesStr.split(",").map(s => s.trim()).filter(Boolean)
+				: undefined;
+
+			await gh.issueEdit({
+				number: num,
+				title: title || undefined,
+				body: body || undefined,
+				state: (state === "open" || state === "closed") ? state : undefined,
+				addLabels: labels?.filter(l => !current.labels.map(x => x.name).includes(l)),
+				removeLabels: labels !== undefined
+					? current.labels.map(l => l.name).filter(l => !labels!.includes(l))
+					: undefined,
+				addAssignees: assignees?.filter(a => !current.assignees.map(x => x.login).includes(a)),
+				removeAssignees: assignees !== undefined
+					? current.assignees.map(a => a.login).filter(a => !assignees!.includes(a))
+					: undefined,
+				milestone: milestoneStr || undefined,
+			});
+
+			ctx.ui.notify(`✅ Issue #${num} editada com sucesso.`, "success");
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			ctx.ui.notify(`❌ Erro ao editar issue #${num}: ${msg}`, "error");
+		}
+		return;
+	}
+
 	ctx.ui.notify(
-		"Uso: /github issue create | /github issue list | /github issue view <num>",
+		"Uso: /github issue create | /github issue list | /github issue view <num> | /github issue edit <num>",
 		"info",
 	);
 }
