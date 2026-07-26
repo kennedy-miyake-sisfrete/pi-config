@@ -4,10 +4,33 @@
 
 import { Type, type Static } from "typebox";
 
+// ── Tipos válidos (mesmo do validate.ts, sem import circular) ──────────
+
+const VALID_TYPE_LITERALS = [
+	"feat",
+	"fix",
+	"refactor",
+	"docs",
+	"style",
+	"test",
+	"chore",
+	"ci",
+	"build",
+	"perf",
+	"revert",
+] as const;
+
 // ── Schemas dos parâmetros das tools ───────────────────────────────────
 
 export const CreatePrParams = Type.Object({
-	title: Type.String({ description: "Título do pull request" }),
+	type: Type.Union(
+		VALID_TYPE_LITERALS.map((t) => Type.Literal(t)),
+		{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
+	),
+	scope: Type.String({ description: "Escopo/módulo da alteração (ex: auth, api/orders, docker)" }),
+	title: Type.String({ description: "Descrição curta da mudança, sem type/scope/numero" }),
+	breaking: Type.Optional(Type.Boolean({ description: "Se true, adiciona '!' no título. Incluir BREAKING CHANGE: no body", default: false })),
+	taskNumber: Type.Optional(Type.Union([Type.String(), Type.Number()], { description: "Número da tarefa (opcional, vai no título como #numero)" })),
 	body: Type.String({ description: "Descrição/corpo do pull request (markdown)" }),
 	head: Type.String({ description: "Nome da branch de origem (com as alterações)" }),
 	base: Type.Optional(Type.String({ description: "Branch de destino (padrão: main)", default: "main" })),
@@ -16,10 +39,17 @@ export const CreatePrParams = Type.Object({
 export type CreatePrParams = Static<typeof CreatePrParams>;
 
 export const CreateIssueParams = Type.Object({
-	title: Type.String({ description: "Título da issue" }),
+	type: Type.Union(
+		VALID_TYPE_LITERALS.map((t) => Type.Literal(t)),
+		{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
+	),
+	scope: Type.String({ description: "Escopo/módulo (ex: auth, api/orders, docs)" }),
+	title: Type.String({ description: "Descrição curta, sem type/scope/numero" }),
+	breaking: Type.Optional(Type.Boolean({ description: "Se true, adiciona '!' no título. Incluir BREAKING CHANGE: no body", default: false })),
+	taskNumber: Type.Optional(Type.Union([Type.String(), Type.Number()], { description: "Número da tarefa (opcional)" })),
 	body: Type.String({ description: "Descrição da issue (markdown)" }),
 	labels: Type.Optional(Type.Array(Type.String(), { description: "Labels para aplicar" })),
-	assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir" })),
+	assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir (login)" })),
 });
 export type CreateIssueParams = Static<typeof CreateIssueParams>;
 
