@@ -5,6 +5,8 @@
 import { Type, type Static } from "typebox";
 
 // ── Schemas dos parâmetros das tools ───────────────────────────────────
+// NOTA: gh.ts usa estes tipos para wrapper do gh CLI (title/body simples).
+// Os schemas CC (type, scope, quebrando, etc) estão inline nas tools.
 
 export const CreatePrParams = Type.Object({
 	title: Type.String({ description: "Título do pull request" }),
@@ -19,7 +21,7 @@ export const CreateIssueParams = Type.Object({
 	title: Type.String({ description: "Título da issue" }),
 	body: Type.String({ description: "Descrição da issue (markdown)" }),
 	labels: Type.Optional(Type.Array(Type.String(), { description: "Labels para aplicar" })),
-	assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir" })),
+	assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir (login)" })),
 });
 export type CreateIssueParams = Static<typeof CreateIssueParams>;
 

@@ -13,6 +13,7 @@
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { GhApi } from "../gh";
+import { buildTitle, validateTitle, type CommitType, VALID_TYPES } from "../tools/validate";
 
 type Cmd = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
 
@@ -81,6 +82,39 @@ async function handleHelp(ctx: ExtensionCommandContext) {
 	);
 }
 
+// ── Helpers de formulário ──────────────────────────────────────────────
+
+async function askType(ctx: ExtensionCommandContext): Promise<CommitType | null> {
+	if (!ctx.hasUI) return "feat";
+	const options = VALID_TYPES.map((t) => `${t}`);
+	const picked = await ctx.ui.select("Tipo da mudança:", options);
+	if (!picked || !(VALID_TYPES as readonly string[]).includes(picked)) return null;
+	return picked as CommitType;
+}
+
+async function askCcFields(ctx: ExtensionCommandContext): Promise<{
+	type: CommitType;
+	scope: string;
+	titleLine: string;
+	breaking: boolean;
+	taskNumber?: string;
+} | null> {
+	const type = await askType(ctx);
+	if (!type) return null;
+
+	const scope = await ctx.ui.input("Escopo/módulo (ex: auth, api/orders, docker):", "");
+	if (!scope) return null;
+
+	const titleLine = await ctx.ui.input("Descrição curta (sem type/scope):", "");
+	if (!titleLine) return null;
+
+	const breaking = ctx.hasUI ? await ctx.ui.confirm("Breaking change?", false) : false;
+	const taskStr = await ctx.ui.input("Nº da tarefa (opcional):", "");
+	const taskNumber = taskStr || undefined;
+
+	return { type, scope, titleLine, breaking, taskNumber };
+}
+
 // ── PR ─────────────────────────────────────────────────────────────────
 
 async function handlePr(
@@ -91,11 +125,18 @@ async function handlePr(
 	const sub = args[0]?.toLowerCase();
 
 	if (sub === "create") {
-		const title = await ctx.ui.input("Título do PR:", "");
-		if (!title) return;
+		const fields = await askCcFields(ctx);
+		if (!fields) return;
+
+		const { type, scope, titleLine, breaking, taskNumber } = fields;
 
 		const body = ctx.hasUI
-			? (await ctx.ui.editor("Descrição do PR (markdown)", "## O que mudou?\n\n")) ?? ""
+			? (await ctx.ui.editor(
+					"Descrição do PR (markdown)",
+					breaking
+						? "BREAKING CHANGE: \n\n## O que mudou?\n\n"
+						: "## O que mudou?\n\n",
+			  )) ?? ""
 			: "";
 
 		const head = await ctx.ui.input("Branch de origem:", "");
@@ -104,9 +145,17 @@ async function handlePr(
 		const base = await ctx.ui.input("Branch de destino:", "main");
 		const draft = await ctx.ui.confirm("Criar como draft?", false);
 
+		const fullTitle = buildTitle({ type, scope, title: titleLine, breaking, taskNumber });
+		const validation = validateTitle(fullTitle);
+
+		if (!validation.valid) {
+			ctx.ui.notify(`❌ ${validation.error}`, "error");
+			return;
+		}
+
 		try {
 			const result = await gh.prCreate({
-				title,
+				title: fullTitle,
 				body,
 				head,
 				base: base || "main",
@@ -226,11 +275,18 @@ async function handleIssue(
 	const sub = args[0]?.toLowerCase();
 
 	if (sub === "create") {
-		const title = await ctx.ui.input("Título da issue:", "");
-		if (!title) return;
+		const fields = await askCcFields(ctx);
+		if (!fields) return;
+
+		const { type, scope, titleLine, breaking, taskNumber } = fields;
 
 		const body = ctx.hasUI
-			? (await ctx.ui.editor("Descrição da issue (markdown)", "## Contexto\n\n")) ?? ""
+			? (await ctx.ui.editor(
+					"Descrição da issue (markdown)",
+					breaking
+						? "BREAKING CHANGE: \n\n## Contexto\n\n"
+						: "## Contexto\n\n",
+			  )) ?? ""
 			: "";
 
 		const labelsStr = await ctx.ui.input("Labels (separadas por vírgula):", "");
@@ -238,9 +294,17 @@ async function handleIssue(
 			? labelsStr.split(",").map((s) => s.trim()).filter(Boolean)
 			: undefined;
 
+		const fullTitle = buildTitle({ type, scope, title: titleLine, breaking, taskNumber });
+		const validation = validateTitle(fullTitle);
+
+		if (!validation.valid) {
+			ctx.ui.notify(`❌ ${validation.error}`, "error");
+			return;
+		}
+
 		try {
 			const result = await gh.issueCreate({
-				title,
+				title: fullTitle,
 				body,
 				labels,
 			});
