@@ -2,7 +2,7 @@
  * Web Search Extension — Page Fetcher
  *
  * Fetches pages in parallel (max 10 concurrent), extracts clean text with
- * cheerio, and saves each page to /tmp/.web-fetch-cache/page_<date>_<randomhex>/.
+ * cheerio, and saves each page to /tmp/page_<date>_<randomhex>/.
  */
 
 import * as cheerio from "cheerio";
@@ -123,7 +123,7 @@ async function cleanOldCaches(baseDir: string): Promise<void> {
  *   - respects the external `signal` for Esc-based abort
  *
  * Successful pages are saved as clean text to:
- *   /tmp/.web-fetch-cache/page_<YYYYMMDD>_<8-char-hex>/<sanitised-url>.txt
+ *   /tmp/page_<YYYYMMDD>_<8-char-hex>/<sanitised-url>.txt
  *
  * Uses /tmp/ so the cache is discarded when the sandbox is torn down.
  */
@@ -135,9 +135,8 @@ export async function fetchPages(
 	// 1. Clean caches older than 7 days, then create fresh output directory
 	const dateStr = getDateStr();
 	const randHex = randomHex(8);
-	const baseDir = path.join("/tmp", ".web-fetch-cache");
-	await cleanOldCaches(baseDir);
-	const outputDir = path.join(baseDir, `page_${dateStr}_${randHex}`);
+	await cleanOldCaches("/tmp");
+	const outputDir = path.join("/tmp", `page_${dateStr}_${randHex}`);
 	await fs.mkdir(outputDir, { recursive: true });
 
 	const results: FetchItemResult[] = [];
