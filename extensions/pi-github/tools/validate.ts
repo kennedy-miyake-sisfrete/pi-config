@@ -26,9 +26,10 @@ export const VALID_TYPES = [
 
 export type CommitType = (typeof VALID_TYPES)[number];
 
-// Regex completo: type(scope)!: description #123
+// Regex: type(scope)[!]: description
+// Número da tarefa vai no buildTitle, não precisa constar no regex.
 const CC_REGEX =
-	/^(feat|fix|refactor|docs|style|test|chore|ci|build|perf|revert)\([a-z0-9_\-./]+\)(!)?: .+( #\d+)?$/i;
+	/^(feat|fix|refactor|docs|style|test|chore|ci|build|perf|revert)\([a-z0-9_\-./]+\)(!)?: .+$/i;
 
 /**
  * Constrói o título completo a partir dos campos estruturados.
