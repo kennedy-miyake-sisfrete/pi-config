@@ -10,7 +10,7 @@
 
 import { Type } from "typebox";
 import type { GhApi } from "../gh";
-import { buildTitle, validateTitle, type CommitType } from "./validate";
+import { buildTitle, validateTitle, type CommitType, VALID_TYPES } from "./validate";
 
 interface CreateIssueParams {
 	type: CommitType;
@@ -36,9 +36,7 @@ export function createIssueTool(gh: GhApi) {
 
 		parameters: Type.Object({
 			type: Type.Union(
-				["feat", "fix", "refactor", "docs", "style", "test", "chore", "ci", "build", "perf", "revert"].map((t) =>
-					Type.Literal(t),
-				),
+				[...VALID_TYPES].map((t) => Type.Literal(t)),
 				{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
 			),
 			scope: Type.String({ description: "Escopo/módulo (ex: auth, api/orders, docs)" }),

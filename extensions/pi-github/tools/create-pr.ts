@@ -10,7 +10,7 @@
 
 import { Type } from "typebox";
 import type { GhApi } from "../gh";
-import { buildTitle, validateTitle, type CommitType } from "./validate";
+import { buildTitle, validateTitle, type CommitType, VALID_TYPES } from "./validate";
 
 /** Parâmetro tipado (TypeBox gera Static equivalente, mas garantimos o tipo aqui) */
 interface CreatePrParams {
@@ -37,9 +37,7 @@ export function createPrTool(gh: GhApi) {
 
 		parameters: Type.Object({
 			type: Type.Union(
-				["feat", "fix", "refactor", "docs", "style", "test", "chore", "ci", "build", "perf", "revert"].map((t) =>
-					Type.Literal(t),
-				),
+				[...VALID_TYPES].map((t) => Type.Literal(t)),
 				{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
 			),
 			scope: Type.String({ description: "Escopo/módulo da alteração (ex: auth, api/orders, docker)" }),
