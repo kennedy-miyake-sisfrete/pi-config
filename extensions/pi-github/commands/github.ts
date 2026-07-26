@@ -65,14 +65,6 @@ export function createGithubCommand(gh: GhApi): {
  *   /github search           → Busca interativa
  *   /github auth             → Mostra status da autenticação
  *   /github help             → Mostra ajuda
- */
-
-import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { GhApi } from "../gh";
-import { buildTitle, validateTitle, type CommitType, VALID_TYPES } from "../tools/validate";
-
-type Cmd = (args: string, ctx: ExtensionCommandContext) => Promise<void>;
-
 /**
  * Cria handler para /github command.
  */
