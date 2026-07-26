@@ -10,7 +10,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir, CONFIG_DIR_NAME } from "@earendil-works/pi-coding-agent";
-import type { SandboxConfig, SandboxCacheDirs } from "./types";
+import type { SandboxConfig } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 
 function safeReadJson(filePath: string): Partial<SandboxConfig> | null {
@@ -47,19 +47,6 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
   }
 
   return result;
-}
-
-/**
- * Resolve caminhos de cache com base no cwd.
- * Cria os diretórios se não existirem.
- */
-function resolveCacheDirs(cwd: string): SandboxCacheDirs {
-  const fs = require("node:fs");
-  const npmDir = join(cwd, ".sandbox-cache", "npm");
-  const pipDir = join(cwd, ".sandbox-cache", "pip");
-  fs.mkdirSync(npmDir, { recursive: true });
-  fs.mkdirSync(pipDir, { recursive: true });
-  return { npm: npmDir, pip: pipDir };
 }
 
 /**
@@ -109,13 +96,6 @@ export function loadConfig(cwd: string): SandboxConfig {
       );
     }
     config = deepMerge(config, projectOverlay);
-  }
-
-  // Resolve diretórios de cache
-  if (!config.filesystem.cacheDirs.npm || !config.filesystem.cacheDirs.pip) {
-    const resolved = resolveCacheDirs(cwd);
-    if (!config.filesystem.cacheDirs.npm) config.filesystem.cacheDirs.npm = resolved.npm;
-    if (!config.filesystem.cacheDirs.pip) config.filesystem.cacheDirs.pip = resolved.pip;
   }
 
   return config;

@@ -8,7 +8,7 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, openSync, closeSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, openSync, closeSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { SandboxConfig, BwrapCall, BwrapResult } from "./types";
 
@@ -60,7 +60,7 @@ function matchSimpleGlob(name: string, pattern: string): boolean {
  * Escaneia $cwd recursivamente por arquivos cujo basename
  * corresponda a qualquer padrão em `patterns`.
  *
- * Ignora .git, node_modules, .sandbox-cache para performance.
+ * Ignora .git, node_modules para performance.
  */
 function findDangerousFiles(cwd: string, patterns: string[]): string[] {
   if (patterns.length === 0) return [];
@@ -80,7 +80,7 @@ function findDangerousFiles(cwd: string, patterns: string[]): string[] {
 
       // Pula diretórios grandes/conhecidos
       if (entry.isDirectory()) {
-        if (name === ".git" || name === "node_modules" || name === ".sandbox-cache") continue;
+        if (name === ".git" || name === "node_modules") continue;
         walk(join(current, name));
         continue;
       }
@@ -187,8 +187,6 @@ function getBwrapCacheKey(config: SandboxConfig, cwd: string): string {
     cwd,
     String(config.internet.enabled),
     config.ssh.mode,
-    config.filesystem.cacheDirs.npm,
-    config.filesystem.cacheDirs.pip,
     config.filesystem.denyPaths.join(","),
     config.filesystem.denyFilePatterns.join(","),
     config.filesystem.extraWritable.join(","),
@@ -352,19 +350,6 @@ export function buildBwrapArgs(config: SandboxConfig, cwd: string): string[] {
     }
   }
   // mode === "none": nada é montado
-
-  // Cache persistente (npm, pip)
-  const npmDir = config.filesystem.cacheDirs.npm;
-  if (npmDir) {
-    mkdirSync(npmDir, { recursive: true });
-    args.push("--bind", npmDir, join(home, ".npm"));
-  }
-
-  const pipDir = config.filesystem.cacheDirs.pip;
-  if (pipDir) {
-    mkdirSync(pipDir, { recursive: true });
-    args.push("--bind", pipDir, join(home, ".cache", "pip"));
-  }
 
   // Git config (necessário pra user.name/user.email em commits)
   const gitconfig = join(home, ".gitconfig");
