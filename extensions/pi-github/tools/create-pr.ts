@@ -1,44 +1,90 @@
 /**
  * Tool: github_create_pr
  *
- * Cria pull request via gh CLI.
- * LLM usa quando precisa abrir PR após alterações.
+ * Cria pull request via gh CLI com formato Conventional Commits.
+ * Valida o título antes de criar.
+ *
+ * Formato gerado:
+ *   <type>(<scope>)[!]: <title> [#<taskNumber>]
  */
 
 import { Type } from "typebox";
 import type { GhApi } from "../gh";
+import { buildTitle, validateTitle, type CommitType } from "./validate";
+
+/** Parâmetro tipado (TypeBox gera Static equivalente, mas garantimos o tipo aqui) */
+interface CreatePrParams {
+	type: CommitType;
+	scope: string;
+	title: string;
+	breaking?: boolean;
+	taskNumber?: string | number;
+	body: string;
+	head: string;
+	base?: string;
+	draft?: boolean;
+}
 
 export function createPrTool(gh: GhApi) {
 	return {
 		name: "github_create_pr",
 		label: "GitHub: Create PR",
 		description:
-			"Cria um pull request no GitHub. Use após fazer alterações em uma branch. " +
-			"Parâmetros: title (título), body (descrição em markdown), head (branch origem), " +
-			"base (branch destino, padrão main), draft (se true, cria como draft PR).",
+			"Cria um pull request no GitHub seguindo Conventional Commits. " +
+			"O título é montado automaticamente como type(scope)[!]: descrição [#numero]. " +
+			"Parâmetros: type, scope, title (descrição curta), body (markdown), " +
+			"head (branch origem), base, draft, breaking, taskNumber.",
 
 		parameters: Type.Object({
-			title: Type.String({ description: "Título do pull request" }),
-			body: Type.String({ description: "Descrição/corpo do pull request (markdown)" }),
-			head: Type.String({ description: "Nome da branch de origem (com as alterações)" }),
-			base: Type.Optional(
-				Type.String({ description: "Branch de destino", default: "main" }),
+			type: Type.Union(
+				["feat", "fix", "refactor", "docs", "style", "test", "chore", "ci", "build", "perf", "revert"].map((t) =>
+					Type.Literal(t),
+				),
+				{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
 			),
-			draft: Type.Optional(
-				Type.Boolean({ description: "Criar como draft PR", default: false }),
+			scope: Type.String({ description: "Escopo/módulo da alteração (ex: auth, api/orders, docker)" }),
+			title: Type.String({ description: "Descrição curta, sem type/scope/numero" }),
+			breaking: Type.Optional(
+				Type.Boolean({ description: "Se true, adiciona '!' e deve incluir BREAKING CHANGE: no body", default: false }),
 			),
+			taskNumber: Type.Optional(
+				Type.Union([Type.String(), Type.Number()], { description: "Nº da tarefa (opcional, vai no título como #numero)" }),
+			),
+			body: Type.String({ description: "Descrição/corpo (markdown). Se breaking=true, incluir BREAKING CHANGE: <desc>" }),
+			head: Type.String({ description: "Branch de origem" }),
+			base: Type.Optional(Type.String({ description: "Branch de destino", default: "main" })),
+			draft: Type.Optional(Type.Boolean({ description: "Criar como draft PR", default: false })),
 		}),
 
 		async execute(
 			_toolCallId: string,
-			params: { title: string; body: string; head: string; base?: string; draft?: boolean },
+			params: CreatePrParams,
 			_signal: AbortSignal | undefined,
 			_onUpdate: unknown,
 			_ctx: unknown,
 		) {
 			try {
-				const result = await gh.prCreate({
+				// 1. Construir título
+				const fullTitle = buildTitle({
+					type: params.type,
+					scope: params.scope,
 					title: params.title,
+					breaking: params.breaking,
+					taskNumber: params.taskNumber,
+				});
+
+				// 2. Validar título
+				const validation = validateTitle(fullTitle);
+				if (!validation.valid) {
+					return {
+						content: [{ type: "text" as const, text: `## ❌ Título inválido\n\n${validation.error}` }],
+						isError: true,
+					};
+				}
+
+				// 3. Criar PR
+				const result = await gh.prCreate({
+					title: fullTitle,
 					body: params.body,
 					head: params.head,
 					base: params.base ?? "main",
@@ -51,7 +97,7 @@ export function createPrTool(gh: GhApi) {
 							type: "text" as const,
 							text:
 								`## ✅ PR criado\n\n` +
-								`**#${result.number}** — [${params.title}](${result.url})\n\n` +
+								`**#${result.number}** — [${fullTitle}](${result.url})\n\n` +
 								`Branch: \`${params.head}\` → \`${params.base ?? "main"}\`\n` +
 								`${params.draft ? "*(draft)*" : ""}`,
 						},
@@ -60,12 +106,7 @@ export function createPrTool(gh: GhApi) {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `## ❌ Erro ao criar PR\n\n\`\`\`\n${msg}\n\`\`\``,
-						},
-					],
+					content: [{ type: "text" as const, text: `## ❌ Erro ao criar PR\n\n\`\`\`\n${msg}\n\`\`\`` }],
 					isError: true,
 				};
 			}
