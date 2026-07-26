@@ -12,6 +12,8 @@
 import type {
 	CreatePrParams,
 	CreateIssueParams,
+	EditIssueParams,
+	EditPrParams,
 	ListPrsParams,
 	ListIssuesParams,
 	SearchParams,
@@ -162,6 +164,38 @@ export function createGh(exec: ExecFn) {
 			];
 			if (opts.repo) args.push("--repo", opts.repo);
 			return execGh<GhIssueDetail>(exec, args, true);
+		},
+
+		// ── Edit Issue ───────────────────────────────────────────────
+		async issueEdit(opts: EditIssueParams): Promise<string> {
+			const args = ["issue", "edit", String(opts.number)];
+			if (opts.repo) args.push("--repo", opts.repo);
+			if (opts.title !== undefined) args.push("--title", opts.title);
+			if (opts.body !== undefined) args.push("--body", opts.body);
+			if (opts.addLabels?.length) args.push("--add-label", opts.addLabels.join(","));
+			if (opts.removeLabels?.length) args.push("--remove-label", opts.removeLabels.join(","));
+			if (opts.addAssignees?.length) args.push("--add-assignee", opts.addAssignees.join(","));
+			if (opts.removeAssignees?.length) args.push("--remove-assignee", opts.removeAssignees.join(","));
+			if (opts.state) args.push("--state", opts.state);
+			if (opts.milestone) args.push("--milestone", opts.milestone);
+
+			return execGh<string>(exec, args);
+		},
+
+		// ── Edit PR ──────────────────────────────────────────────────
+		async prEdit(opts: EditPrParams): Promise<string> {
+			const args = ["pr", "edit", String(opts.number)];
+			if (opts.repo) args.push("--repo", opts.repo);
+			if (opts.title !== undefined) args.push("--title", opts.title);
+			if (opts.body !== undefined) args.push("--body", opts.body);
+			if (opts.base) args.push("--base", opts.base);
+			if (opts.addLabels?.length) args.push("--add-label", opts.addLabels.join(","));
+			if (opts.removeLabels?.length) args.push("--remove-label", opts.removeLabels.join(","));
+			if (opts.addAssignees?.length) args.push("--add-assignee", opts.addAssignees.join(","));
+			if (opts.removeAssignees?.length) args.push("--remove-assignee", opts.removeAssignees.join(","));
+			if (opts.milestone) args.push("--milestone", opts.milestone);
+
+			return execGh<string>(exec, args);
 		},
 
 		// ── Auth ──────────────────────────────────────────────────────

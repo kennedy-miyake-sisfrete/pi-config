@@ -11,13 +11,28 @@ description: Gerencia pull requests e issues via GitHub. Usa tools pi-github par
 |---|---|
 | `github_create_pr` | Após push de branch: abrir PR com title, body, head, base |
 | `github_create_issue` | Reportar bug, sugerir melhoria, ou registrar tarefa |
+| `github_edit_issue` | Editar issue existente (título, body, labels, assignees, state, milestone) |
+| `github_edit_pr` | Editar PR existente (título, body, base, labels, assignees, milestone) |
 | `github_search` | Antes de criar issue/PR: verificar se já existe duplicata |
 | `github_list_prs` | Consultar PRs abertas por estado, autor |
 | `github_list_issues` | Consultar issues abertas por label, estado |
 | `github_pr_view` | Ver detalhes completos de um PR (body, status, mergeabilidade, labels, assignees, comentários) |
 | `github_issue_view` | Ver detalhes completos de uma issue (body, labels, assignees, comentários) |
 
-**Comando `/github`:** para ações interativas (editor de body, seleção de PRs).
+**Comando `/github`:** para ações interativas (editor de body, seleção de PRs, edição de issues/PRs).
+
+Subcomandos disponíveis:
+- `/github pr create` — Cria PR com editor interativo
+- `/github pr list` — Lista PRs com seletor
+- `/github pr view <num>` — Exibe detalhes do PR
+- `/github pr edit <num>` — Edita PR interativamente
+- `/github issue create` — Cria issue com editor interativo
+- `/github issue list` — Lista issues com seletor
+- `/github issue view <num>` — Exibe detalhes da issue
+- `/github issue edit <num>` — Edita issue interativamente
+- `/github search <query>` — Busca interativa
+- `/github auth` — Status da autenticação
+- `/github help` — Ajuda
 
 ---
 
@@ -199,6 +214,45 @@ body: "..."                      # markdown livre
 labels: ["bug"]                  # labels opcionais
 assignees: ["usuario"]           # assignees opcionais
 ```
+
+---
+
+## Fluxo: Editar Issue / PR
+
+Editar uma issue ou PR existente sem precisar recriar.
+
+```
+1. [ver]    github_issue_view / github_pr_view   # estado atual (opcional)
+2. [editar] github_edit_issue / github_edit_pr    # aplicar mudanças
+```
+
+### Parâmetros da tool edit_issue
+
+```
+number: 42                      # número da issue (obrigatório)
+repo: "owner/repo"               # repositório (opcional, padrão: atual)
+title: "Novo título"             # opcional
+body: "Novo body"                # opcional
+labels: ["bug", "urgente"]       # substitui completamente os atuais
+assignees: ["usuario"]           # substitui completamente os atuais
+state: "closed"                  # "open" ou "closed" (opcional)
+milestone: "v2.0"               # opcional
+```
+
+### Parâmetros da tool edit_pr
+
+```
+number: 12                      # número do PR (obrigatório)
+repo: "owner/repo"               # repositório (opcional, padrão: atual)
+title: "Novo título"             # opcional
+body: "Novo body"                # opcional
+base: "develop"                  # nova branch de destino (opcional)
+labels: ["bug", "urgente"]       # substitui completamente os atuais
+assignees: ["usuario"]           # substitui completamente os atuais
+milestone: "v2.0"               # opcional
+```
+
+> **Como funciona:** As tools buscam o estado atual da issue/PR, calculam a diferença entre o novo e o atual, e aplicam apenas add/remove. Labels e assignees são tratados como **substituição completa** na interface.
 
 ---
 
