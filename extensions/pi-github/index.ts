@@ -7,6 +7,8 @@
  *   github_search        → Busca issues/PRs
  *   github_list_prs      → Lista pull requests
  *   github_list_issues   → Lista issues
+ *   github_edit_issue    → Edita issue
+ *   github_edit_pr       → Edita pull request
  *
  * Comandos (/github):
  *   /github pr create    → Cria PR com editor interativo
@@ -29,6 +31,8 @@ import { listIssuesTool } from "./tools/list-issues";
 import { createGithubCommand } from "./commands/github";
 import { viewPrTool } from "./tools/view-pr";
 import { viewIssueTool } from "./tools/view-issue";
+import { editIssueTool } from "./tools/edit-issue";
+import { editPrTool } from "./tools/edit-pr";
 
 export default function (pi: ExtensionAPI) {
 	// ── gh disponível? ────────────────────────────────────────────────
@@ -73,6 +77,8 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool(listIssuesTool(gh));
 	pi.registerTool(viewPrTool(gh));
 	pi.registerTool(viewIssueTool(gh));
+	pi.registerTool(editIssueTool(gh));
+	pi.registerTool(editPrTool(gh));
 
 	// ── Slash Commands ───────────────────────────────────────────────
 	pi.registerCommand("github", createGithubCommand(gh));
