@@ -7,6 +7,7 @@
  */
 
 import type { SearchResult, EngineResult } from "./types";
+import { createAbortController } from "./types";
 import { getSerperKey } from "../config";
 
 const API_URL = "https://google.serper.dev/search";
@@ -32,9 +33,7 @@ export async function searchSerper(
 	}
 
 	try {
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(new Error("TIMEOUT")), TIMEOUT_MS);
-		if (signal) signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+		const { controller, cleanup } = createAbortController(signal, TIMEOUT_MS);
 
 		const response = await fetch(API_URL, {
 			method: "POST",
@@ -46,8 +45,7 @@ export async function searchSerper(
 			signal: controller.signal,
 		});
 
-		clearTimeout(timer);
-		if (signal) signal.removeEventListener("abort", () => controller.abort());
+		cleanup();
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => "");
@@ -67,7 +65,7 @@ export async function searchSerper(
 		const results: SearchResult[] = data.organic.map((r) => ({
 			title: r.title,
 			url: r.link,
-			snippet: "",
+			snippet: r.snippet,
 		}));
 
 		return { results };
