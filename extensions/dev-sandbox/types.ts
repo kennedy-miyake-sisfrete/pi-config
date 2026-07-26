@@ -2,13 +2,6 @@
  * Tipos e interfaces para extensão dev-sandbox.
  */
 
-export interface SandboxCacheDirs {
-  /** Caminho absoluto para cache npm (ex: /proj/.sandbox-cache/npm). */
-  npm: string;
-  /** Caminho absoluto para cache pip (ex: /proj/.sandbox-cache/pip). */
-  pip: string;
-}
-
 export interface SandboxFilesystemConfig {
   /** Paths extras montados read-write (além do $PWD que sempre é rw). */
   extraWritable: string[];
@@ -25,11 +18,9 @@ export interface SandboxFilesystemConfig {
    *
    * Suporta `*` como wildcard (ex: `*.pem`, `.env.*`).
    * Sem `*` = correspondência exata.
-   * Ignora .git, node_modules, .sandbox-cache durante scan.
+   * Ignora .git, node_modules durante scan.
    */
   denyFilePatterns: string[];
-  /** Diretórios de cache com bind persistente entre comandos. */
-  cacheDirs: SandboxCacheDirs;
 }
 
 export interface SandboxInternetConfig {
@@ -125,10 +116,6 @@ export const DEFAULT_CONFIG: SandboxConfig = {
     extraReadonly: [],
     denyPaths: ["/sbin", "/usr/sbin", "/root"],
     denyFilePatterns: [".env", "*.pem", "*.key"],
-    cacheDirs: {
-      npm: "",
-      pip: "",
-    },
   },
   ssh: {
     mode: "agent",

@@ -10,6 +10,7 @@
  */
 
 import type { SearchResult, EngineResult } from "./types";
+import { createAbortController } from "./types";
 import { getSearxngKey, getSearxngUrl } from "../config";
 
 const DEFAULT_SEARXNG_URL = "http://localhost:4000";
@@ -30,22 +31,11 @@ async function fetchSearxng(
 	options: RequestInit,
 	signal?: AbortSignal,
 ): Promise<Response> {
-	const controller = new AbortController();
-	const timer = setTimeout(
-		() => controller.abort(new Error("TIMEOUT")),
-		TIMEOUT_MS,
-	);
-	if (signal) {
-		signal.addEventListener("abort", () => controller.abort(signal.reason), {
-			once: true,
-		});
-	}
-
+	const { controller, cleanup } = createAbortController(signal, TIMEOUT_MS);
 	try {
 		return await fetch(url, { ...options, signal: controller.signal });
 	} finally {
-		clearTimeout(timer);
-		if (signal) signal.removeEventListener("abort", () => controller.abort());
+		cleanup();
 	}
 }
 
@@ -126,7 +116,7 @@ export async function searchSearxng(
 				.map((r) => ({
 					title: r.title ?? r.url,
 					url: r.url,
-					snippet: "",
+					snippet: r.content ?? "",
 				}));
 			if (results.length === 0) {
 				return { results: [], error: "SearXNG: no results found" };

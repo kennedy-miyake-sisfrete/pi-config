@@ -186,7 +186,7 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Fetch full page content from a list of URLs. " +
 			"Extracts clean text from each page (strips HTML tags, scripts, navigation) " +
-			"and saves to <cwd>/.web-fetch-cache/page_<date>_<random>/. " +
+			"and saves to /tmp/page_<date>_<random>/. " +
 			"Processes up to 10 URLs in parallel; excess URLs are queued. " +
 			"Each request uses a random User-Agent and a small random delay to avoid blocking. " +
 			"Call after web_search to get the actual content of the URLs found.",

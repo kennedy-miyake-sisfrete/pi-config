@@ -40,7 +40,7 @@ function load(): SearchConfig {
 
 function save(config: SearchConfig): void {
 	if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
-	writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+	writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 	cached = config;
 }
 
@@ -104,27 +104,25 @@ export function setKey(provider: string, key: string): void {
 }
 
 export function getConfiguredProviders(): string[] {
-	const cfg = load();
 	const providers: string[] = [];
-	if (cfg.serperApiKey) providers.push("serper.dev");
-	if (cfg.exaApiKey) providers.push("exa");
-	if (cfg.tavilyApiKey) providers.push("tavily");
-	if (cfg.searxngKey) providers.push("searxng");
+	if (getSerperKey()) providers.push("serper.dev");
+	if (getExaKey()) providers.push("exa");
+	if (getTavilyKey()) providers.push("tavily");
+	if (getSearxngKey()) providers.push("searxng");
 	return providers;
 }
 
 export function getConfigSummary(): string {
-	const cfg = load();
 	const lines: string[] = ["## Web Search Configuration", ""];
 	const add = (name: string, key: string | null) => {
 		lines.push(`  ${key ? "✅" : "❌"} ${name}: ${key ? key.slice(0, 8) + "…" : "not set"}`);
 	};
-	add("Serper.dev", cfg.serperApiKey ?? null);
-	add("Exa", cfg.exaApiKey ?? null);
-	add("Tavily", cfg.tavilyApiKey ?? null);
-	add("SearXNG", cfg.searxngKey ?? null);
+	add("Serper.dev", getSerperKey());
+	add("Exa", getExaKey());
+	add("Tavily", getTavilyKey());
+	add("SearXNG", getSearxngKey());
 	lines.push("");
-	const searxngUrl = cfg.searxngUrl ?? "http://localhost:4000";
+	const searxngUrl = getSearxngUrl() ?? "http://localhost:4000";
 	lines.push(`  SearXNG URL: ${searxngUrl}`);
 	lines.push("");
 	lines.push("Set keys via:");
