@@ -8,6 +8,7 @@
 
 import type { SearchResult, EngineResult } from "./engines";
 import { searchSearxng, searchTavily, searchExa, searchSerper } from "./engines";
+import { getSearxngUrl, getSearxngKey } from "./config";
 
 export type SearchSource = "searxng" | "tavily" | "exa" | "serper";
 
@@ -28,8 +29,12 @@ export async function search(
 	query: string,
 	signal?: AbortSignal,
 ): Promise<SearchOutput> {
-	// 0. SearXNG (local, self-hosted)
-	const searxng = await searchSearxng(query, signal);
+	// 0. SearXNG (local, self-hosted) — skip if not explicitly configured
+	// to avoid mandatory 10s timeout when docker isn't running.
+	const searxngConfigured = getSearxngUrl() !== null || getSearxngKey() !== null;
+	const searxng = searxngConfigured
+		? await searchSearxng(query, signal)
+		: { results: [] as SearchResult[], error: "SearXNG: not configured — skipping" };
 	if (searxng.results.length > 0) {
 		return { query, source: "searxng", results: searxng.results };
 	}
