@@ -1,0 +1,77 @@
+/**
+ * Validação e construção de títulos seguindo Conventional Commits.
+ *
+ * Formato:
+ *   <type>(<scope>)[!]: <description> [#<task-number>]
+ *
+ * Exemplos:
+ *   feat(auth): Adiciona login com JWT #123
+ *   fix(api)!: Remove campo obsoleto #456
+ *   refactor(checkout): Extrai validação de cupom
+ */
+
+export const VALID_TYPES = [
+	"feat",
+	"fix",
+	"refactor",
+	"docs",
+	"style",
+	"test",
+	"chore",
+	"ci",
+	"build",
+	"perf",
+	"revert",
+] as const;
+
+export type CommitType = (typeof VALID_TYPES)[number];
+
+// Regex: type(scope)[!]: description
+// Número da tarefa vai no buildTitle, não precisa constar no regex.
+const CC_REGEX =
+	/^(feat|fix|refactor|docs|style|test|chore|ci|build|perf|revert)\([a-z0-9_\-./]+\)(!)?: .+$/i;
+
+/**
+ * Constrói o título completo a partir dos campos estruturados.
+ */
+export function buildTitle(opts: {
+	type: CommitType;
+	scope: string;
+	title: string;
+	breaking?: boolean;
+	taskNumber?: string | number;
+}): string {
+	if (!opts.scope || opts.scope.trim() === "") {
+		throw new Error("Escopo é obrigatório e não pode estar vazio. Ex: auth, api/orders, docker");
+	}
+
+	const scope = opts.scope.trim();
+	const breaking = opts.breaking ? "!" : "";
+	const task = opts.taskNumber != null ? ` #${opts.taskNumber}` : "";
+	return `${opts.type}(${scope})${breaking}: ${opts.title}${task}`;
+}
+
+/**
+ * Valida se o título completo segue o formato Conventional Commits.
+ */
+export function validateTitle(title: string): {
+	valid: boolean;
+	error?: string;
+} {
+	if (!CC_REGEX.test(title)) {
+		return {
+			valid: false,
+			error: [
+				`Título não segue Conventional Commits:`,
+				`  Recebido: "${title}"`,
+				`  Esperado: "tipo(escopo)[!]: descrição [#numero]"`,
+				'',
+				`  Tipos: ${VALID_TYPES.join(", ")}`,
+				`  Escopo: módulo (ex: auth, api/orders, docker)`,
+				`  !: opcional, para breaking changes`,
+				`  #numero: opcional, número da tarefa`,
+			].join("\n"),
+		};
+	}
+	return { valid: true };
+}

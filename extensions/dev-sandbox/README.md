@@ -52,6 +52,7 @@ Montado read-only:
   ~/.ssh/known_hosts              → verificação de host key (modo agent)
   ~/.ssh/config                   → configuração SSH (modo agent)
   ~/.pi/agent/skills              → skills do agente (sempre)
+  ~/.local/share/mise/installs/pi → documentação do pi (sempre, se existir)
 
 Montado read-write:
   $PWD                            → diretório do projeto
