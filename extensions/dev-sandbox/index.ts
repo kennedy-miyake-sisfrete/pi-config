@@ -6,7 +6,6 @@
  *   - Filesystem restrito (whitelist de /usr, /bin, /lib; /sbin vazio)
  *   - Rede do host compartilhada (para LLM API, npm, git)
  *   - ~/.ssh montado read-only (git push/pull)
- *   - Cache npm/pip persistente em .sandbox-cache/
  *   - HOME isolado (sem acesso ao home real)
  *
  * Complementa security-guard.ts:
@@ -282,8 +281,6 @@ export default function (pi: ExtensionAPI) {
         `Workspace: ${localCwd}`,
         `Rede: ${config.internet.enabled ? "compartilhada com host" : "isolada"}`,
         `SSH: ${config.ssh.mode === "agent" ? "ssh-agent socket" : config.ssh.mode === "mount" ? "~/.ssh montado read-only" : "não montado"}`,
-        `Cache npm: ${config.filesystem.cacheDirs.npm || "não configurado"}`,
-        `Cache pip: ${config.filesystem.cacheDirs.pip || "não configurado"}`,
         `Seccomp: ${config.seccomp.enabled ? "ativo (" + config.seccomp.bpfPath + ")" : "desabilitado"}`,
         `Capabilities: ${config.capabilities.drop.length} droppadas`,
       ];
