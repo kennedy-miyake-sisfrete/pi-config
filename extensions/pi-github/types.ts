@@ -73,6 +73,41 @@ export const ViewIssueParams = Type.Object({
 });
 export type ViewIssueParams = Static<typeof ViewIssueParams>;
 
+// ── Edit ────────────────────────────────────────────────────────────────
+
+export const EditIssueParams = Type.Object({
+	number: Type.Integer({ description: "Número da issue" }),
+	repo: Type.Optional(Type.String({ description: "Repositório (owner/name). Padrão: repositório atual" })),
+	title: Type.Optional(Type.String({ description: "Novo título" })),
+	body: Type.Optional(Type.String({ description: "Novo body (markdown)" })),
+	addLabels: Type.Optional(Type.Array(Type.String(), { description: "Labels para adicionar" })),
+	removeLabels: Type.Optional(Type.Array(Type.String(), { description: "Labels para remover" })),
+	addAssignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para adicionar (login)" })),
+	removeAssignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para remover (login)" })),
+	state: Type.Optional(
+		Type.Union(
+			[Type.Literal("open"), Type.Literal("closed")],
+			{ description: "Novo estado (open/closed)" },
+		),
+	),
+	milestone: Type.Optional(Type.String({ description: "Milestone (número ou título)" })),
+});
+export type EditIssueParams = Static<typeof EditIssueParams>;
+
+export const EditPrParams = Type.Object({
+	number: Type.Integer({ description: "Número do pull request" }),
+	repo: Type.Optional(Type.String({ description: "Repositório (owner/name). Padrão: repositório atual" })),
+	title: Type.Optional(Type.String({ description: "Novo título" })),
+	body: Type.Optional(Type.String({ description: "Novo body (markdown)" })),
+	base: Type.Optional(Type.String({ description: "Nova branch de destino" })),
+	addLabels: Type.Optional(Type.Array(Type.String(), { description: "Labels para adicionar" })),
+	removeLabels: Type.Optional(Type.Array(Type.String(), { description: "Labels para remover" })),
+	addAssignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para adicionar (login)" })),
+	removeAssignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para remover (login)" })),
+	milestone: Type.Optional(Type.String({ description: "Milestone (número ou título)" })),
+});
+export type EditPrParams = Static<typeof EditPrParams>;
+
 // ── Tipos de resultado retornados pelo gh CLI ─────────────────────────
 
 export interface GhAuthor {
