@@ -19,7 +19,7 @@ interface CreateIssueParams {
 	breaking?: boolean;
 	taskNumber?: string | number;
 	body: string;
-	labels?: string[];
+	labels: string[];
 	assignees?: string[];
 }
 
@@ -48,7 +48,7 @@ export function createIssueTool(gh: GhApi) {
 				Type.Union([Type.String(), Type.Number()], { description: "Nº da tarefa (opcional, vai no título como #numero)" }),
 			),
 			body: Type.String({ description: "Descrição (markdown). Se breaking=true, incluir BREAKING CHANGE: <desc>" }),
-			labels: Type.Optional(Type.Array(Type.String(), { description: "Labels para aplicar" })),
+			labels: Type.Array(Type.String(), { description: "Labels para aplicar (obrigatório — ex: bug, enhancement, documentation, question)" }),
 			assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir (login)" })),
 		}),
 
