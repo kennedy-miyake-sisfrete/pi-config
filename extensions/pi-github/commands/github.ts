@@ -54,54 +54,6 @@ export function createGithubCommand(gh: GhApi): {
 	};
 }
 
-/**
- * Comando /github — interface interativa para GitHub.
- *
- * Subcomandos:
- *   /github pr create        → Cria PR com editor para body
- *   /github pr list          → Lista PRs com seletor
- *   /github issue create     → Cria issue com editor para body
- *   /github issue list       → Lista issues com seletor
- *   /github search           → Busca interativa
- *   /github auth             → Mostra status da autenticação
- *   /github help             → Mostra ajuda
-/**
- * Cria handler para /github command.
- */
-export function createGithubCommand(gh: GhApi): {
-	description: string;
-	handler: Cmd;
-} {
-	return {
-		description:
-			"Comandos GitHub. Subcomandos: pr create, pr list, issue create, " +
-			"issue list, search <query>, auth, help",
-		handler: async (args, ctx) => {
-			const parts = (args ?? "").trim().split(/\s+/);
-			const cmd = parts[0]?.toLowerCase() ?? "";
-
-			switch (cmd) {
-				case "pr":
-					return handlePr(parts.slice(1), ctx, gh);
-				case "issue":
-					return handleIssue(parts.slice(1), ctx, gh);
-				case "search":
-					return handleSearch(parts.slice(1), ctx, gh);
-				case "auth":
-					return handleAuth(ctx, gh);
-				case "help":
-				case "":
-					return handleHelp(ctx);
-				default:
-					ctx.ui.notify(
-						`❌ Subcomando desconhecido: "${cmd}". Use /github help`,
-						"error",
-					);
-			}
-		},
-	};
-}
-
 // ── Help ───────────────────────────────────────────────────────────────
 
 async function handleHelp(ctx: ExtensionCommandContext) {
