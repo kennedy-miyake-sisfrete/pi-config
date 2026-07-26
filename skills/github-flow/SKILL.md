@@ -127,16 +127,11 @@ jobs:
             perf
             revert
           requireScope: true
-          subjectPattern: ^(?![A-Z]).+$
-          subjectPatternError: |
-            A descrição "{subject}" no título "{title}" não deve começar com maiúscula.
-            Use letra minúscula (ex: "Adiciona" e não "adiciona"? Não — usar "adiciona").
 ```
 
 Essa action:
 - Bloqueia PR se título não seguir CC
 - Exige scope (`requireScope: true`)
-- Valida descrição começa com minúscula
 - Comenta no PR explicando o erro
 
 Combinar com **branch protection** no GitHub: marcar `Lint PR` como required check.
