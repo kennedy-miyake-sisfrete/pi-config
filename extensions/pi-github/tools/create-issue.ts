@@ -1,43 +1,88 @@
 /**
  * Tool: github_create_issue
  *
- * Cria issue no GitHub.
- * LLM usa para reportar bugs, sugerir features, etc.
+ * Cria issue no GitHub com formato Conventional Commits.
+ * Valida o título antes de criar.
+ *
+ * Formato gerado:
+ *   <type>(<scope>)[!]: <title> [#<taskNumber>]
  */
 
 import { Type } from "typebox";
 import type { GhApi } from "../gh";
+import { buildTitle, validateTitle, type CommitType } from "./validate";
+
+interface CreateIssueParams {
+	type: CommitType;
+	scope: string;
+	title: string;
+	breaking?: boolean;
+	taskNumber?: string | number;
+	body: string;
+	labels?: string[];
+	assignees?: string[];
+}
 
 export function createIssueTool(gh: GhApi) {
 	return {
 		name: "github_create_issue",
 		label: "GitHub: Create Issue",
 		description:
-			"Cria uma issue no GitHub. Use para reportar bugs, sugerir melhorias, " +
-			"ou registrar tarefas. Parâmetros: title (título), body (descrição), " +
-			"labels (array de labels), assignees (array de logins para atribuir).",
+			"Cria uma issue no GitHub seguindo Conventional Commits. " +
+			"O título é montado como type(scope)[!]: descrição [#numero]. " +
+			"Use para reportar bugs, sugerir features, ou registrar tarefas. " +
+			"Parâmetros: type, scope, title (descrição curta), body (markdown), " +
+			"labels, assignees, breaking, taskNumber.",
 
 		parameters: Type.Object({
-			title: Type.String({ description: "Título da issue" }),
-			body: Type.String({ description: "Descrição da issue (markdown)" }),
-			labels: Type.Optional(
-				Type.Array(Type.String(), { description: "Labels para aplicar" }),
+			type: Type.Union(
+				["feat", "fix", "refactor", "docs", "style", "test", "chore", "ci", "build", "perf", "revert"].map((t) =>
+					Type.Literal(t),
+				),
+				{ description: "Tipo da mudança (ex: feat, fix, refactor)" },
 			),
-			assignees: Type.Optional(
-				Type.Array(Type.String(), { description: "Usuários para atribuir (login)" }),
+			scope: Type.String({ description: "Escopo/módulo (ex: auth, api/orders, docs)" }),
+			title: Type.String({ description: "Descrição curta, sem type/scope/numero" }),
+			breaking: Type.Optional(
+				Type.Boolean({ description: "Se true, adiciona '!' e deve incluir BREAKING CHANGE: no body", default: false }),
 			),
+			taskNumber: Type.Optional(
+				Type.Union([Type.String(), Type.Number()], { description: "Nº da tarefa (opcional, vai no título como #numero)" }),
+			),
+			body: Type.String({ description: "Descrição (markdown). Se breaking=true, incluir BREAKING CHANGE: <desc>" }),
+			labels: Type.Optional(Type.Array(Type.String(), { description: "Labels para aplicar" })),
+			assignees: Type.Optional(Type.Array(Type.String(), { description: "Usuários para atribuir (login)" })),
 		}),
 
 		async execute(
 			_toolCallId: string,
-			params: { title: string; body: string; labels?: string[]; assignees?: string[] },
+			params: CreateIssueParams,
 			_signal: AbortSignal | undefined,
 			_onUpdate: unknown,
 			_ctx: unknown,
 		) {
 			try {
-				const result = await gh.issueCreate({
+				// 1. Construir título
+				const fullTitle = buildTitle({
+					type: params.type,
+					scope: params.scope,
 					title: params.title,
+					breaking: params.breaking,
+					taskNumber: params.taskNumber,
+				});
+
+				// 2. Validar título
+				const validation = validateTitle(fullTitle);
+				if (!validation.valid) {
+					return {
+						content: [{ type: "text" as const, text: `## ❌ Título inválido\n\n${validation.error}` }],
+						isError: true,
+					};
+				}
+
+				// 3. Criar issue
+				const result = await gh.issueCreate({
+					title: fullTitle,
 					body: params.body,
 					labels: params.labels,
 					assignees: params.assignees,
@@ -45,7 +90,7 @@ export function createIssueTool(gh: GhApi) {
 
 				const parts: string[] = [
 					`## ✅ Issue criada\n`,
-					`**#${result.number}** — [${params.title}](${result.url})`,
+					`**#${result.number}** — [${fullTitle}](${result.url})`,
 				];
 				if (params.labels?.length) {
 					parts.push(`\nLabels: ${params.labels.join(", ")}`);
@@ -58,12 +103,7 @@ export function createIssueTool(gh: GhApi) {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `## ❌ Erro ao criar issue\n\n\`\`\`\n${msg}\n\`\`\``,
-						},
-					],
+					content: [{ type: "text" as const, text: `## ❌ Erro ao criar issue\n\n\`\`\`\n${msg}\n\`\`\`` }],
 					isError: true,
 				};
 			}
