@@ -88,7 +88,7 @@ async function askType(ctx: ExtensionCommandContext): Promise<CommitType | null>
 	if (!ctx.hasUI) return "feat";
 	const options = VALID_TYPES.map((t) => `${t}`);
 	const picked = await ctx.ui.select("Tipo da mudança:", options);
-	if (!picked) return null;
+	if (!picked || !(VALID_TYPES as readonly string[]).includes(picked)) return null;
 	return picked as CommitType;
 }
 
